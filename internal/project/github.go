@@ -47,8 +47,9 @@ func PushWorkflowFile(repo, path, content, branch, commitMsg string) error {
 
 	// Check if file already exists to get its SHA (required for updates).
 	sha := ""
-	cmd := exec.Command("gh", "api", fmt.Sprintf("repos/%s/contents/%s", repo, path),
-		"--jq", ".sha", "-q")
+	cmd := exec.Command("gh", "api",
+		fmt.Sprintf("repos/%s/contents/%s?ref=%s", repo, path, branch),
+		"--jq", ".sha")
 	if out, err := cmd.Output(); err == nil {
 		sha = strings.TrimSpace(string(out))
 	}
