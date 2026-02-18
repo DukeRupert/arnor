@@ -1,0 +1,242 @@
+package project
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/dukerupert/arnor/internal/caddy"
+	"github.com/dukerupert/arnor/internal/config"
+	"github.com/dukerupert/arnor/internal/dns"
+	"github.com/dukerupert/arnor/internal/hetzner"
+	"golang.org/x/crypto/ssh"
+)
+
+// SetupParams contains all inputs for project creation.
+type SetupParams struct {
+	ProjectName string
+	Repo        string // e.g. "github.com/fireflysoftware/myclient"
+	ServerName  string
+	EnvName     string // "dev" or "prod"
+	Domain      string
+	Port        int
+	DockerImage string // e.g. "fireflysoftware/myclient"
+}
+
+// Setup runs the full project creation orchestration for a single environment.
+func Setup(params SetupParams) error {
+	fmt.Printf("Setting up %s environment for %s...\n\n", params.EnvName, params.ProjectName)
+
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
+
+	// Step 1: Look up server IP
+	fmt.Println("Step 1: Looking up server...")
+	server := cfg.FindServer(params.ServerName)
+	if server == nil {
+		mgr, err := hetzner.NewManager(cfg.HetznerProjects)
+		if err != nil {
+			return fmt.Errorf("creating Hetzner manager: %w", err)
+		}
+		s, err := mgr.GetServer(params.ServerName)
+		if err != nil {
+			return fmt.Errorf("server %q not found in config or Hetzner: %w", params.ServerName, err)
+		}
+		server = &config.Server{
+			Name:           s.Name,
+			IP:             s.PublicNet.IPv4.IP,
+			HetznerProject: s.ProjectAlias,
+			HetznerID:      s.ID,
+		}
+	}
+	fmt.Printf("  Server: %s (%s)\n\n", server.Name, server.IP)
+
+	// Step 2: Detect DNS provider
+	fmt.Println("Step 2: Detecting DNS provider...")
+	provider, err := dns.ProviderForDomain(params.Domain, cfg)
+	if err != nil {
+		return fmt.Errorf("detecting DNS provider for %s: %w", params.Domain, err)
+	}
+	fmt.Printf("  Provider: %s\n\n", provider.Name())
+
+	// Step 3: SSH setup
+	fmt.Println("Step 3: Setting up deploy user on VPS...")
+	deployUser := deployUserName(params.ProjectName, params.EnvName)
+	deployPath := fmt.Sprintf("/opt/%s", deployDirName(params.ProjectName, params.EnvName))
+
+	peonKey := os.Getenv("PEON_SSH_KEY")
+	if peonKey == "" {
+		return fmt.Errorf("PEON_SSH_KEY environment variable is not set")
+	}
+
+	sshResult, err := RunSetup(server.IP, deployUser, deployPath, peonKey)
+	if err != nil {
+		return fmt.Errorf("SSH setup: %w", err)
+	}
+	fmt.Printf("  Deploy user: %s\n", deployUser)
+	fmt.Printf("  Deploy path: %s\n\n", deployPath)
+
+	// Step 4: Write Caddy config
+	fmt.Println("Step 4: Writing Caddy config...")
+	caddyConfig := caddy.Generate(params.Domain, params.Port)
+	if err := writeCaddyConfig(server.IP, peonKey, params.Domain, caddyConfig); err != nil {
+		return fmt.Errorf("writing Caddy config: %w", err)
+	}
+	fmt.Printf("  Caddy config written and reloaded.\n\n")
+
+	// Step 5: Create DNS records
+	fmt.Println("Step 5: Creating DNS records...")
+	_, err = provider.CreateRecord(params.Domain, "", "A", server.IP, "600")
+	if err != nil {
+		return fmt.Errorf("creating A record: %w", err)
+	}
+	fmt.Printf("  Created A record for %s -> %s\n", params.Domain, server.IP)
+
+	_, err = provider.CreateRecord(params.Domain, "www", "CNAME", params.Domain, "600")
+	if err != nil {
+		fmt.Printf("  Warning: could not create www CNAME: %v\n", err)
+	} else {
+		fmt.Printf("  Created CNAME record www.%s -> %s\n", params.Domain, params.Domain)
+	}
+	fmt.Println()
+
+	// Step 6: Set GitHub Actions secrets
+	fmt.Println("Step 6: Setting GitHub secrets...")
+	prefix := strings.ToUpper(params.EnvName)
+	if err := SetEnvironmentSecrets(params.Repo, prefix, deployUser, deployPath, sshResult.DeployPublicKey, server.IP); err != nil {
+		return fmt.Errorf("setting GitHub secrets: %w", err)
+	}
+	fmt.Println()
+
+	// Step 7: Generate workflow files
+	fmt.Println("Step 7: Generating workflow files...")
+	if err := generateWorkflowFile(params.EnvName, params.DockerImage); err != nil {
+		return fmt.Errorf("generating workflow: %w", err)
+	}
+	fmt.Println()
+
+	// Step 8: Update config
+	fmt.Println("Step 8: Updating config...")
+	branch := "dev"
+	if params.EnvName == "prod" {
+		branch = "main"
+	}
+
+	env := config.Environment{
+		Domain:      params.Domain,
+		DNSProvider: provider.Name(),
+		Branch:      branch,
+		DeployPath:  deployPath,
+		DeployUser:  deployUser,
+		Port:        params.Port,
+	}
+
+	existingProject := cfg.FindProject(params.ProjectName)
+	if existingProject != nil {
+		if existingProject.Environments == nil {
+			existingProject.Environments = make(map[string]config.Environment)
+		}
+		existingProject.Environments[params.EnvName] = env
+	} else {
+		cfg.Projects = append(cfg.Projects, config.Project{
+			Name:   params.ProjectName,
+			Repo:   params.Repo,
+			Server: params.ServerName,
+			Environments: map[string]config.Environment{
+				params.EnvName: env,
+			},
+		})
+	}
+
+	if err := config.Save(cfg); err != nil {
+		return fmt.Errorf("saving config: %w", err)
+	}
+	fmt.Println("  Config updated.")
+
+	fmt.Printf("\nDone! %s %s environment is ready.\n", params.ProjectName, params.EnvName)
+	return nil
+}
+
+func deployUserName(project, env string) string {
+	if env == "dev" {
+		return project + "-dev-deploy"
+	}
+	return project + "-deploy"
+}
+
+func deployDirName(project, env string) string {
+	if env == "dev" {
+		return project + "-dev"
+	}
+	return project
+}
+
+func writeCaddyConfig(serverIP, peonKeyPEM, domain, caddyConfig string) error {
+	signer, err := ssh.ParsePrivateKey([]byte(peonKeyPEM))
+	if err != nil {
+		return fmt.Errorf("parsing peon SSH key: %w", err)
+	}
+
+	sshConfig := &ssh.ClientConfig{
+		User:            "peon",
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	}
+
+	client, err := ssh.Dial("tcp", serverIP+":22", sshConfig)
+	if err != nil {
+		return fmt.Errorf("SSH dial to %s: %w", serverIP, err)
+	}
+	defer client.Close()
+
+	escapedConfig := strings.ReplaceAll(caddyConfig, "'", "'\\''")
+	commands := []string{
+		fmt.Sprintf("echo '%s' | sudo tee /etc/caddy/sites/%s.caddy", escapedConfig, domain),
+		"sudo systemctl reload caddy",
+	}
+
+	for _, cmd := range commands {
+		if err := runSSHCommand(client, cmd); err != nil {
+			return fmt.Errorf("running %q: %w", cmd, err)
+		}
+	}
+	return nil
+}
+
+func generateWorkflowFile(envName, dockerImage string) error {
+	var content string
+	var filename string
+	var err error
+
+	switch envName {
+	case "dev":
+		content, err = GenerateDevWorkflow(dockerImage)
+		filename = "deploy-dev.yml"
+	case "prod":
+		content, err = GenerateProdWorkflow(dockerImage)
+		filename = "deploy-prod.yml"
+	default:
+		return fmt.Errorf("unknown environment: %s", envName)
+	}
+	if err != nil {
+		return err
+	}
+
+	dir := filepath.Join(".github", "workflows")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("creating workflows dir: %w", err)
+	}
+
+	path := filepath.Join(dir, filename)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+
+	fmt.Printf("  Generated %s\n", path)
+	return nil
+}
