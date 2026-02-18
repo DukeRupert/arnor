@@ -29,4 +29,8 @@ var (
 
 	SpinnerStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("63"))
+
+	CursorStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("63"))
 )

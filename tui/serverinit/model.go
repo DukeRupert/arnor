@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dukerupert/arnor/internal/hetzner"
 	"github.com/dukerupert/arnor/internal/peon"
 	"github.com/dukerupert/arnor/tui"
 )
@@ -15,7 +16,7 @@ import (
 type phase int
 
 const (
-	phaseHost phase = iota
+	phaseSelectServer phase = iota
 	phaseUser
 	phaseSudoPassword
 	phaseConfirm
@@ -41,7 +42,9 @@ type passphraseRequestMsg struct{}
 type Model struct {
 	phase phase
 
-	hostInput       textinput.Model
+	servers []hetzner.ServerWithProject
+	cursor  int
+
 	userInput       textinput.Model
 	sudoInput       textinput.Model
 	passphraseInput textinput.Model
@@ -66,12 +69,7 @@ type passphraseResp struct {
 }
 
 // New creates a new server init model.
-func New() Model {
-	hi := textinput.New()
-	hi.Placeholder = "e.g. 5.78.122.182"
-	hi.Focus()
-	hi.CharLimit = 253
-
+func New(servers []hetzner.ServerWithProject) Model {
 	ui := textinput.New()
 	ui.Placeholder = "root"
 	ui.SetValue("root")
@@ -92,25 +90,25 @@ func New() Model {
 	s.Style = tui.SpinnerStyle
 
 	return Model{
-		phase:          phaseHost,
-		hostInput:      hi,
-		userInput:      ui,
-		sudoInput:      si,
+		phase:           phaseSelectServer,
+		servers:         servers,
+		userInput:       ui,
+		sudoInput:       si,
 		passphraseInput: pi,
-		spinner:        s,
-		passphraseWait: make(chan struct{}, 1),
-		passphraseCh:   make(chan passphraseResp, 1),
+		spinner:         s,
+		passphraseWait:  make(chan struct{}, 1),
+		passphraseCh:    make(chan passphraseResp, 1),
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return textinput.Blink
+	return nil
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.phase {
-	case phaseHost:
-		return m.updateHost(msg)
+	case phaseSelectServer:
+		return m.updateSelectServer(msg)
 	case phaseUser:
 		return m.updateUser(msg)
 	case phaseSudoPassword:
@@ -127,15 +125,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) updateHost(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) updateSelectServer(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if key, ok := msg.(tea.KeyMsg); ok {
 		switch key.String() {
+		case "up", "k":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		case "down", "j":
+			if m.cursor < len(m.servers)-1 {
+				m.cursor++
+			}
 		case "enter":
-			val := strings.TrimSpace(m.hostInput.Value())
-			if val == "" {
+			if len(m.servers) == 0 {
 				return m, nil
 			}
-			m.host = val
+			srv := m.servers[m.cursor]
+			m.host = srv.PublicNet.IPv4.IP
 			m.phase = phaseUser
 			m.userInput.Focus()
 			return m, textinput.Blink
@@ -143,9 +149,7 @@ func (m Model) updateHost(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	}
-	var cmd tea.Cmd
-	m.hostInput, cmd = m.hostInput.Update(msg)
-	return m, cmd
+	return m, nil
 }
 
 func (m Model) updateUser(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -165,9 +169,8 @@ func (m Model) updateUser(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.phase = phaseConfirm
 			return m, nil
 		case "esc":
-			m.phase = phaseHost
-			m.hostInput.Focus()
-			return m, textinput.Blink
+			m.phase = phaseSelectServer
+			return m, nil
 		}
 	}
 	var cmd tea.Cmd
@@ -330,10 +333,20 @@ func (m Model) View() string {
 	b.WriteString("\n")
 
 	switch m.phase {
-	case phaseHost:
-		b.WriteString("Enter the server hostname or IP:\n\n")
-		b.WriteString(m.hostInput.View())
-		b.WriteString(tui.HelpStyle.Render("\nenter: next  esc: quit"))
+	case phaseSelectServer:
+		b.WriteString("Select a server:\n\n")
+		for i, srv := range m.servers {
+			name := srv.Name
+			ip := srv.PublicNet.IPv4.IP
+			project := srv.ProjectAlias
+
+			line := fmt.Sprintf("  %s  %s  (%s)", name, ip, project)
+			if i == m.cursor {
+				line = tui.CursorStyle.Render("> " + fmt.Sprintf("%s  %s  (%s)", name, ip, project))
+			}
+			b.WriteString(line + "\n")
+		}
+		b.WriteString(tui.HelpStyle.Render("\nj/k: navigate  enter: select  esc: quit"))
 
 	case phaseUser:
 		b.WriteString(renderField("Host", m.host))
