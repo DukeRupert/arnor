@@ -150,7 +150,7 @@ func EnsureWorkflowDispatch(repo, envName, projectName string) error {
 	}
 
 	content := string(decoded)
-	if strings.Contains(content, "workflow_dispatch") && strings.Contains(content, "scp-action") {
+	if strings.Contains(content, "workflow_dispatch") && strings.Contains(content, "scp-action") && strings.Contains(content, "docker login") {
 		return nil
 	}
 

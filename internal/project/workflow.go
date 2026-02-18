@@ -51,6 +51,7 @@ jobs:
           username: ${{ "{{" }} secrets.DEV_VPS_USER {{ "}}" }}
           key: ${{ "{{" }} secrets.DEV_VPS_SSH_KEY {{ "}}" }}
           script: |
+            echo "${{ "{{" }} secrets.DOCKERHUB_TOKEN {{ "}}" }}" | docker login -u "${{ "{{" }} secrets.DOCKERHUB_USERNAME {{ "}}" }}" --password-stdin
             cd ${{ "{{" }} secrets.DEV_VPS_DEPLOY_PATH {{ "}}" }}
             docker pull ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:dev-${{ "{{" }} github.sha {{ "}}" }}
             docker compose down || true
@@ -111,6 +112,7 @@ jobs:
           username: ${{ "{{" }} secrets.PROD_VPS_USER {{ "}}" }}
           key: ${{ "{{" }} secrets.PROD_VPS_SSH_KEY {{ "}}" }}
           script: |
+            echo "${{ "{{" }} secrets.DOCKERHUB_TOKEN {{ "}}" }}" | docker login -u "${{ "{{" }} secrets.DOCKERHUB_USERNAME {{ "}}" }}" --password-stdin
             cd ${{ "{{" }} secrets.PROD_VPS_DEPLOY_PATH {{ "}}" }}
             docker pull ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:${{ "{{" }} steps.version.outputs.tag {{ "}}" }}
             docker compose down || true
