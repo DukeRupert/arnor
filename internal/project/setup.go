@@ -1,6 +1,7 @@
 package project
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -211,16 +212,31 @@ func writeCaddyConfig(serverIP, peonKeyPEM, domain, caddyConfig string) error {
 	}
 	defer client.Close()
 
-	escapedConfig := strings.ReplaceAll(caddyConfig, "'", "'\\''")
-	commands := []string{
-		fmt.Sprintf("echo '%s' | sudo tee /etc/caddy/sites/%s.caddy", escapedConfig, domain),
-		"sudo systemctl reload caddy",
+	// Ensure sites directory exists
+	if err := runSSHCommand(client, "sudo mkdir -p /etc/caddy/conf.d"); err != nil {
+		return fmt.Errorf("creating caddy sites dir: %w", err)
 	}
 
-	for _, cmd := range commands {
-		if err := runSSHCommand(client, cmd); err != nil {
-			return fmt.Errorf("running %q: %w", cmd, err)
+	// Write config via stdin to avoid shell escaping issues with echo
+	session, err := client.NewSession()
+	if err != nil {
+		return fmt.Errorf("creating SSH session: %w", err)
+	}
+	var stderr bytes.Buffer
+	session.Stdin = strings.NewReader(caddyConfig)
+	session.Stderr = &stderr
+	if err := session.Run(fmt.Sprintf("sudo tee /etc/caddy/conf.d/%s.caddy > /dev/null", domain)); err != nil {
+		errMsg := strings.TrimSpace(stderr.String())
+		session.Close()
+		if errMsg != "" {
+			return fmt.Errorf("writing caddy config: %s", errMsg)
 		}
+		return fmt.Errorf("writing caddy config: %w", err)
+	}
+	session.Close()
+
+	if err := runSSHCommand(client, "sudo systemctl reload caddy"); err != nil {
+		return fmt.Errorf("reloading caddy: %w", err)
 	}
 	return nil
 }
