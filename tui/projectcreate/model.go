@@ -38,6 +38,12 @@ type progressMsg struct {
 	err     error
 }
 
+// usedPortsMsg carries the result of the async port scan.
+type usedPortsMsg struct {
+	ports []int
+	err   error
+}
+
 // Model is the BubbleTea model for the project create screen.
 type Model struct {
 	phase phase
@@ -63,6 +69,10 @@ type Model struct {
 
 	// Peon key resolved from server IP
 	peonKey string
+
+	// Port suggestion from docker ps scan
+	suggestedPort int
+	portScanning  bool
 
 	// Progress channel for Setup callback
 	progressCh chan progressMsg
@@ -247,9 +257,10 @@ func (m Model) updateDomain(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.domain = val
 			m.phase = phasePort
 			m.textInput.SetValue("")
-			m.textInput.Placeholder = "3000"
+			m.textInput.Placeholder = "scanning ports..."
+			m.portScanning = true
 			m.textInput.Focus()
-			return m, textinput.Blink
+			return m, tea.Batch(textinput.Blink, m.scanPorts())
 		case "esc":
 			return m.goBack()
 		}
@@ -260,8 +271,19 @@ func (m Model) updateDomain(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updatePort(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok {
-		switch key.String() {
+	switch msg := msg.(type) {
+	case usedPortsMsg:
+		m.portScanning = false
+		if msg.err == nil {
+			m.suggestedPort = project.SuggestPort(msg.ports)
+			m.textInput.SetValue(strconv.Itoa(m.suggestedPort))
+			m.textInput.Placeholder = fmt.Sprintf("suggested: %d", m.suggestedPort)
+		} else {
+			m.textInput.Placeholder = "3000"
+		}
+		return m, nil
+	case tea.KeyMsg:
+		switch msg.String() {
 		case "enter":
 			val := strings.TrimSpace(m.textInput.Value())
 			if val == "" {
@@ -404,6 +426,16 @@ func (m Model) waitForProgress() tea.Cmd {
 	}
 }
 
+// scanPorts returns a tea.Cmd that SSHs to the server and scans used Docker ports.
+func (m Model) scanPorts() tea.Cmd {
+	serverIP := m.serverIP
+	peonKey := m.peonKey
+	return func() tea.Msg {
+		ports, err := project.GetUsedPorts(serverIP, peonKey)
+		return usedPortsMsg{ports: ports, err: err}
+	}
+}
+
 // resolvePeonKey reads the peon SSH key for a server IP from the env var / file path convention.
 func resolvePeonKey(serverIP string) (string, error) {
 	envKey := "PEON_SSH_KEY_" + strings.ReplaceAll(serverIP, ".", "_")
@@ -476,6 +508,9 @@ func (m Model) View() string {
 	case phasePort:
 		b.WriteString("\nPort:\n\n")
 		b.WriteString(m.textInput.View())
+		if m.portScanning {
+			b.WriteString(tui.HelpStyle.Render("\nscanning docker ports..."))
+		}
 		b.WriteString(tui.HelpStyle.Render("\nenter: next  esc: back"))
 
 	case phaseConfirm:

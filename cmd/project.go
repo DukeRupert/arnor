@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/dukerupert/arnor/internal/config"
+	"github.com/dukerupert/arnor/internal/hetzner"
 	"github.com/dukerupert/arnor/internal/project"
 	"github.com/spf13/cobra"
 )
@@ -123,6 +124,32 @@ func runProjectCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid environment: %s (must be dev, prod, or both)", envChoice)
 	}
 
+	// Resolve server IP and peon key for port scanning
+	var serverIP, peonKey string
+	cfg, err := config.Load()
+	if err == nil {
+		srv := cfg.FindServer(serverName)
+		if srv != nil {
+			serverIP = srv.IP
+		} else {
+			mgr, mgrErr := hetzner.NewManager(cfg.HetznerProjects)
+			if mgrErr == nil {
+				if s, sErr := mgr.GetServer(serverName); sErr == nil {
+					serverIP = s.PublicNet.IPv4.IP
+				}
+			}
+		}
+	}
+	if serverIP != "" {
+		envKey := "PEON_SSH_KEY_" + strings.ReplaceAll(serverIP, ".", "_")
+		keyPath := os.Getenv(envKey)
+		if keyPath != "" {
+			if data, readErr := os.ReadFile(keyPath); readErr == nil {
+				peonKey = strings.TrimSpace(string(data))
+			}
+		}
+	}
+
 	for _, envName := range environments {
 		fmt.Printf("\n--- %s environment ---\n", strings.ToUpper(envName))
 
@@ -142,7 +169,21 @@ func runProjectCreate(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("domain is required for %s environment", envName)
 		}
 
-		portStr := prompt(fmt.Sprintf("Port for %s", envName))
+		// Scan used ports and suggest next available
+		var portPrompt string
+		if serverIP != "" && peonKey != "" {
+			usedPorts, scanErr := project.GetUsedPorts(serverIP, peonKey)
+			if scanErr == nil {
+				suggested := project.SuggestPort(usedPorts)
+				portPrompt = fmt.Sprintf("Port for %s [suggested: %d]", envName, suggested)
+			} else {
+				portPrompt = fmt.Sprintf("Port for %s", envName)
+			}
+		} else {
+			portPrompt = fmt.Sprintf("Port for %s", envName)
+		}
+
+		portStr := prompt(portPrompt)
 		port, err := strconv.Atoi(portStr)
 		if err != nil {
 			return fmt.Errorf("invalid port: %s", portStr)
@@ -156,6 +197,7 @@ func runProjectCreate(cmd *cobra.Command, args []string) error {
 			EnvName:     envName,
 			Domain:      domain,
 			Port:        port,
+			PeonKey:     peonKey,
 			OnProgress: func(step, total int, message string) {
 				fmt.Printf("Step %d/%d: %s\n", step, total, message)
 			},
