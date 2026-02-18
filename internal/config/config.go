@@ -100,13 +100,35 @@ func (c *Config) FindProject(name string) *Project {
 }
 
 // DetectDNSProvider inspects nameservers for a domain and returns "porkbun",
-// "cloudflare", or an error if unrecognized.
+// "cloudflare", or an error if unrecognized. If the domain is a subdomain
+// (e.g. project.angmar.dev), it walks up to the parent domain to find NS records.
 func DetectDNSProvider(domain string) (string, error) {
-	nss, err := net.LookupNS(domain)
-	if err != nil {
-		return "", fmt.Errorf("looking up nameservers for %s: %w", domain, err)
+	// Try the domain itself, then walk up parent domains.
+	// e.g. "foo.angmar.dev" -> "angmar.dev"
+	candidate := domain
+	for {
+		nss, err := net.LookupNS(candidate)
+		if err == nil && len(nss) > 0 {
+			return matchProvider(candidate, nss)
+		}
+
+		// Strip the leftmost label and try the parent
+		idx := strings.Index(candidate, ".")
+		if idx < 0 || idx == len(candidate)-1 {
+			break
+		}
+		candidate = candidate[idx+1:]
+
+		// Need at least a.b (two labels) for a valid domain
+		if !strings.Contains(candidate, ".") {
+			break
+		}
 	}
 
+	return "", fmt.Errorf("looking up nameservers for %s: no NS records found", domain)
+}
+
+func matchProvider(domain string, nss []*net.NS) (string, error) {
 	for _, ns := range nss {
 		host := strings.ToLower(ns.Host)
 		if strings.Contains(host, "porkbun") {
