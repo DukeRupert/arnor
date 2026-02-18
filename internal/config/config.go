@@ -99,12 +99,35 @@ func (c *Config) FindProject(name string) *Project {
 	return nil
 }
 
+// RootDomain walks up from a full domain to find the registrable root domain
+// (the one with NS records). For example, "foo.angmar.dev" returns "angmar.dev".
+// If the domain itself has NS records, it is returned as-is.
+func RootDomain(domain string) (string, error) {
+	candidate := domain
+	for {
+		nss, err := net.LookupNS(candidate)
+		if err == nil && len(nss) > 0 {
+			return candidate, nil
+		}
+
+		idx := strings.Index(candidate, ".")
+		if idx < 0 || idx == len(candidate)-1 {
+			break
+		}
+		candidate = candidate[idx+1:]
+
+		if !strings.Contains(candidate, ".") {
+			break
+		}
+	}
+
+	return "", fmt.Errorf("looking up nameservers for %s: no NS records found", domain)
+}
+
 // DetectDNSProvider inspects nameservers for a domain and returns "porkbun",
 // "cloudflare", or an error if unrecognized. If the domain is a subdomain
 // (e.g. project.angmar.dev), it walks up to the parent domain to find NS records.
 func DetectDNSProvider(domain string) (string, error) {
-	// Try the domain itself, then walk up parent domains.
-	// e.g. "foo.angmar.dev" -> "angmar.dev"
 	candidate := domain
 	for {
 		nss, err := net.LookupNS(candidate)
@@ -112,14 +135,12 @@ func DetectDNSProvider(domain string) (string, error) {
 			return matchProvider(candidate, nss)
 		}
 
-		// Strip the leftmost label and try the parent
 		idx := strings.Index(candidate, ".")
 		if idx < 0 || idx == len(candidate)-1 {
 			break
 		}
 		candidate = candidate[idx+1:]
 
-		// Need at least a.b (two labels) for a valid domain
 		if !strings.Contains(candidate, ".") {
 			break
 		}

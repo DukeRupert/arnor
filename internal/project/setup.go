@@ -113,13 +113,29 @@ func Setup(params SetupParams) error {
 
 	// Step 6: Create DNS records
 	report(6, "Creating DNS records...")
-	_, err = provider.CreateRecord(params.Domain, "", "A", server.IP, "600")
+
+	// Split domain into root domain and subdomain name for the DNS API.
+	// e.g. "foo.angmar.dev" → root "angmar.dev", subName "foo"
+	rootDomain, err := config.RootDomain(params.Domain)
+	if err != nil {
+		return fmt.Errorf("resolving root domain for %s: %w", params.Domain, err)
+	}
+	subName := ""
+	if rootDomain != params.Domain {
+		subName = strings.TrimSuffix(params.Domain, "."+rootDomain)
+	}
+
+	_, err = provider.CreateRecord(rootDomain, subName, "A", server.IP, "600")
 	if err != nil {
 		return fmt.Errorf("creating A record: %w", err)
 	}
 
 	// Best-effort www CNAME
-	provider.CreateRecord(params.Domain, "www", "CNAME", params.Domain, "600")
+	wwwName := "www"
+	if subName != "" {
+		wwwName = "www." + subName
+	}
+	provider.CreateRecord(rootDomain, wwwName, "CNAME", params.Domain, "600")
 
 	// Step 7: Set GitHub Actions secrets
 	report(7, "Setting GitHub secrets...")
