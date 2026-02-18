@@ -6,7 +6,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/arnor/internal/hetzner"
+	"github.com/dukerupert/arnor/internal/project"
 	"github.com/dukerupert/arnor/tui"
+	"github.com/dukerupert/arnor/tui/menu"
+	"github.com/dukerupert/arnor/tui/projectcreate"
 	"github.com/dukerupert/arnor/tui/serverinit"
 	"github.com/spf13/cobra"
 )
@@ -43,8 +46,25 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no servers found across hetzner projects")
 	}
 
-	screens := map[tui.Screen]tea.Model{
-		tui.ScreenServerInit: serverinit.New(servers),
+	repos, err := project.ListGitHubRepos()
+	if err != nil {
+		return fmt.Errorf("fetching github repos: %w", err)
 	}
-	return tui.Run(tui.ScreenServerInit, screens)
+
+	screens := map[tui.Screen]tea.Model{
+		tui.ScreenMenu:          menu.New(),
+		tui.ScreenServerInit:    serverinit.New(servers),
+		tui.ScreenProjectCreate: projectcreate.New(repos, servers),
+	}
+
+	factories := map[tui.Screen]tui.ScreenFactory{
+		tui.ScreenServerInit: func() tea.Model {
+			return serverinit.New(servers)
+		},
+		tui.ScreenProjectCreate: func() tea.Model {
+			return projectcreate.New(repos, servers)
+		},
+	}
+
+	return tui.Run(tui.ScreenMenu, screens, factories)
 }

@@ -277,7 +277,11 @@ func (m Model) updatePassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) updateDone(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if key, ok := msg.(tea.KeyMsg); ok {
 		switch key.String() {
-		case "enter", "q", "esc":
+		case "enter":
+			return m, func() tea.Msg {
+				return tui.SwitchScreenMsg{Screen: tui.ScreenMenu}
+			}
+		case "q":
 			return m, tea.Quit
 		}
 	}
@@ -399,7 +403,7 @@ func (m Model) View() string {
 			b.WriteString(renderField("Env var", m.result.EnvKey))
 			b.WriteString(renderField("Env file", m.result.EnvPath))
 		}
-		b.WriteString(tui.HelpStyle.Render("\nenter/q: quit"))
+		b.WriteString(tui.HelpStyle.Render("\nenter: menu  q: quit"))
 	}
 
 	return b.String()

@@ -1,10 +1,31 @@
 package project
 
 import (
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
 )
+
+// GitHubRepo represents a GitHub repository from `gh repo list`.
+type GitHubRepo struct {
+	Name          string `json:"name"`
+	NameWithOwner string `json:"nameWithOwner"`
+}
+
+// ListGitHubRepos returns repositories for the authenticated user via the gh CLI.
+func ListGitHubRepos() ([]GitHubRepo, error) {
+	cmd := exec.Command("gh", "repo", "list", "--json", "name,nameWithOwner", "--limit", "50", "--no-archived")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("listing repos (is gh CLI installed and authenticated?): %w", err)
+	}
+	var repos []GitHubRepo
+	if err := json.Unmarshal(out, &repos); err != nil {
+		return nil, fmt.Errorf("parsing repo list: %w", err)
+	}
+	return repos, nil
+}
 
 // SetGitHubSecret sets a repository secret using the gh CLI.
 func SetGitHubSecret(repo, name, value string) error {
@@ -29,7 +50,6 @@ func SetEnvironmentSecrets(repo, prefix, vpsUser, deployPath, sshKey, vpsHost st
 	secrets["VPS_HOST"] = vpsHost
 
 	for name, value := range secrets {
-		fmt.Printf("  Setting secret %s...\n", name)
 		if err := SetGitHubSecret(repo, name, value); err != nil {
 			return err
 		}

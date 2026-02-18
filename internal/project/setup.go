@@ -14,6 +14,9 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// ProgressFunc is called to report step-by-step progress during setup.
+type ProgressFunc func(step, total int, message string)
+
 // SetupParams contains all inputs for project creation.
 type SetupParams struct {
 	ProjectName string
@@ -23,11 +26,18 @@ type SetupParams struct {
 	Domain      string
 	Port        int
 	DockerImage string // e.g. "fireflysoftware/myclient"
+	PeonKey     string // PEM-encoded peon SSH key; falls back to PEON_SSH_KEY env var
+	OnProgress  ProgressFunc
 }
 
 // Setup runs the full project creation orchestration for a single environment.
 func Setup(params SetupParams) error {
-	fmt.Printf("Setting up %s environment for %s...\n\n", params.EnvName, params.ProjectName)
+	const totalSteps = 8
+	report := func(step int, message string) {
+		if params.OnProgress != nil {
+			params.OnProgress(step, totalSteps, message)
+		}
+	}
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -35,7 +45,7 @@ func Setup(params SetupParams) error {
 	}
 
 	// Step 1: Look up server IP
-	fmt.Println("Step 1: Looking up server...")
+	report(1, "Looking up server...")
 	server := cfg.FindServer(params.ServerName)
 	if server == nil {
 		mgr, err := hetzner.NewManager(cfg.HetznerProjects)
@@ -53,74 +63,64 @@ func Setup(params SetupParams) error {
 			HetznerID:      s.ID,
 		}
 	}
-	fmt.Printf("  Server: %s (%s)\n\n", server.Name, server.IP)
 
 	// Step 2: Detect DNS provider
-	fmt.Println("Step 2: Detecting DNS provider...")
+	report(2, "Detecting DNS provider...")
 	provider, err := dns.ProviderForDomain(params.Domain, cfg)
 	if err != nil {
 		return fmt.Errorf("detecting DNS provider for %s: %w", params.Domain, err)
 	}
-	fmt.Printf("  Provider: %s\n\n", provider.Name())
 
 	// Step 3: SSH setup
-	fmt.Println("Step 3: Setting up deploy user on VPS...")
+	report(3, "Setting up deploy user on VPS...")
 	deployUser := deployUserName(params.ProjectName, params.EnvName)
 	deployPath := fmt.Sprintf("/opt/%s", deployDirName(params.ProjectName, params.EnvName))
 
-	peonKey := os.Getenv("PEON_SSH_KEY")
+	peonKey := params.PeonKey
 	if peonKey == "" {
-		return fmt.Errorf("PEON_SSH_KEY environment variable is not set")
+		peonKey = os.Getenv("PEON_SSH_KEY")
+	}
+	if peonKey == "" {
+		return fmt.Errorf("peon SSH key not provided and PEON_SSH_KEY env var is not set")
 	}
 
 	sshResult, err := RunSetup(server.IP, deployUser, deployPath, peonKey)
 	if err != nil {
 		return fmt.Errorf("SSH setup: %w", err)
 	}
-	fmt.Printf("  Deploy user: %s\n", deployUser)
-	fmt.Printf("  Deploy path: %s\n\n", deployPath)
 
 	// Step 4: Write Caddy config
-	fmt.Println("Step 4: Writing Caddy config...")
+	report(4, "Writing Caddy config...")
 	caddyConfig := caddy.Generate(params.Domain, params.Port)
 	if err := writeCaddyConfig(server.IP, peonKey, params.Domain, caddyConfig); err != nil {
 		return fmt.Errorf("writing Caddy config: %w", err)
 	}
-	fmt.Printf("  Caddy config written and reloaded.\n\n")
 
 	// Step 5: Create DNS records
-	fmt.Println("Step 5: Creating DNS records...")
+	report(5, "Creating DNS records...")
 	_, err = provider.CreateRecord(params.Domain, "", "A", server.IP, "600")
 	if err != nil {
 		return fmt.Errorf("creating A record: %w", err)
 	}
-	fmt.Printf("  Created A record for %s -> %s\n", params.Domain, server.IP)
 
-	_, err = provider.CreateRecord(params.Domain, "www", "CNAME", params.Domain, "600")
-	if err != nil {
-		fmt.Printf("  Warning: could not create www CNAME: %v\n", err)
-	} else {
-		fmt.Printf("  Created CNAME record www.%s -> %s\n", params.Domain, params.Domain)
-	}
-	fmt.Println()
+	// Best-effort www CNAME
+	provider.CreateRecord(params.Domain, "www", "CNAME", params.Domain, "600")
 
 	// Step 6: Set GitHub Actions secrets
-	fmt.Println("Step 6: Setting GitHub secrets...")
+	report(6, "Setting GitHub secrets...")
 	prefix := strings.ToUpper(params.EnvName)
 	if err := SetEnvironmentSecrets(params.Repo, prefix, deployUser, deployPath, sshResult.DeployPublicKey, server.IP); err != nil {
 		return fmt.Errorf("setting GitHub secrets: %w", err)
 	}
-	fmt.Println()
 
 	// Step 7: Generate workflow files
-	fmt.Println("Step 7: Generating workflow files...")
+	report(7, "Generating workflow files...")
 	if err := generateWorkflowFile(params.EnvName, params.DockerImage); err != nil {
 		return fmt.Errorf("generating workflow: %w", err)
 	}
-	fmt.Println()
 
 	// Step 8: Update config
-	fmt.Println("Step 8: Updating config...")
+	report(8, "Updating config...")
 	branch := "dev"
 	if params.EnvName == "prod" {
 		branch = "main"
@@ -155,9 +155,7 @@ func Setup(params SetupParams) error {
 	if err := config.Save(cfg); err != nil {
 		return fmt.Errorf("saving config: %w", err)
 	}
-	fmt.Println("  Config updated.")
 
-	fmt.Printf("\nDone! %s %s environment is ready.\n", params.ProjectName, params.EnvName)
 	return nil
 }
 
@@ -237,6 +235,5 @@ func generateWorkflowFile(envName, dockerImage string) error {
 		return fmt.Errorf("writing %s: %w", path, err)
 	}
 
-	fmt.Printf("  Generated %s\n", path)
 	return nil
 }

@@ -158,6 +158,9 @@ func runProjectCreate(cmd *cobra.Command, args []string) error {
 			Domain:      domain,
 			Port:        port,
 			DockerImage: dockerImage,
+			OnProgress: func(step, total int, message string) {
+				fmt.Printf("Step %d/%d: %s\n", step, total, message)
+			},
 		}); err != nil {
 			return fmt.Errorf("%s setup failed: %w", envName, err)
 		}
