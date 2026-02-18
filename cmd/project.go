@@ -110,7 +110,6 @@ func runProjectCreate(cmd *cobra.Command, args []string) error {
 	projectName := prompt("Project name")
 	repo := prompt("GitHub repo (e.g. github.com/org/repo)")
 	serverName := prompt("Server name")
-	dockerImage := prompt("Docker image (e.g. org/repo)")
 
 	envChoice := prompt("Environment (dev/prod/both)")
 
@@ -157,7 +156,6 @@ func runProjectCreate(cmd *cobra.Command, args []string) error {
 			EnvName:     envName,
 			Domain:      domain,
 			Port:        port,
-			DockerImage: dockerImage,
 			OnProgress: func(step, total int, message string) {
 				fmt.Printf("Step %d/%d: %s\n", step, total, message)
 			},

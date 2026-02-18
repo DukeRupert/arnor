@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dukerupert/annuminas/pkg/dockerhub"
 	"github.com/dukerupert/arnor/internal/caddy"
 	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/arnor/internal/dns"
@@ -24,15 +25,14 @@ type SetupParams struct {
 	ServerName  string
 	EnvName     string // "dev" or "prod"
 	Domain      string
-	Port        int
-	DockerImage string // e.g. "fireflysoftware/myclient"
-	PeonKey     string // PEM-encoded peon SSH key; falls back to PEON_SSH_KEY env var
+	Port    int
+	PeonKey string // PEM-encoded peon SSH key; falls back to PEON_SSH_KEY env var
 	OnProgress  ProgressFunc
 }
 
 // Setup runs the full project creation orchestration for a single environment.
 func Setup(params SetupParams) error {
-	const totalSteps = 8
+	const totalSteps = 9
 	report := func(step int, message string) {
 		if params.OnProgress != nil {
 			params.OnProgress(step, totalSteps, message)
@@ -71,8 +71,21 @@ func Setup(params SetupParams) error {
 		return fmt.Errorf("detecting DNS provider for %s: %w", params.Domain, err)
 	}
 
-	// Step 3: SSH setup
-	report(3, "Setting up deploy user on VPS...")
+	// Step 3: Create DockerHub repo
+	report(3, "Creating DockerHub repo...")
+	dockerHubUsername := os.Getenv("DOCKERHUB_USERNAME")
+	dockerHubToken := os.Getenv("DOCKERHUB_TOKEN")
+	if dockerHubUsername == "" || dockerHubToken == "" {
+		return fmt.Errorf("DOCKERHUB_USERNAME and DOCKERHUB_TOKEN env vars must be set")
+	}
+	dockerImage := dockerHubUsername + "/" + params.ProjectName
+	dhClient := dockerhub.NewClient(dockerHubUsername, dockerHubToken)
+	if err := dhClient.EnsureRepo(dockerHubUsername, params.ProjectName); err != nil {
+		return fmt.Errorf("creating DockerHub repo: %w", err)
+	}
+
+	// Step 4: SSH setup
+	report(4, "Setting up deploy user on VPS...")
 	deployUser := deployUserName(params.ProjectName, params.EnvName)
 	deployPath := fmt.Sprintf("/opt/%s", deployDirName(params.ProjectName, params.EnvName))
 
@@ -89,15 +102,15 @@ func Setup(params SetupParams) error {
 		return fmt.Errorf("SSH setup: %w", err)
 	}
 
-	// Step 4: Write Caddy config
-	report(4, "Writing Caddy config...")
+	// Step 5: Write Caddy config
+	report(5, "Writing Caddy config...")
 	caddyConfig := caddy.Generate(params.Domain, params.Port)
 	if err := writeCaddyConfig(server.IP, peonKey, params.Domain, caddyConfig); err != nil {
 		return fmt.Errorf("writing Caddy config: %w", err)
 	}
 
-	// Step 5: Create DNS records
-	report(5, "Creating DNS records...")
+	// Step 6: Create DNS records
+	report(6, "Creating DNS records...")
 	_, err = provider.CreateRecord(params.Domain, "", "A", server.IP, "600")
 	if err != nil {
 		return fmt.Errorf("creating A record: %w", err)
@@ -106,21 +119,21 @@ func Setup(params SetupParams) error {
 	// Best-effort www CNAME
 	provider.CreateRecord(params.Domain, "www", "CNAME", params.Domain, "600")
 
-	// Step 6: Set GitHub Actions secrets
-	report(6, "Setting GitHub secrets...")
+	// Step 7: Set GitHub Actions secrets
+	report(7, "Setting GitHub secrets...")
 	prefix := strings.ToUpper(params.EnvName)
-	if err := SetEnvironmentSecrets(params.Repo, prefix, deployUser, deployPath, sshResult.DeployPublicKey, server.IP); err != nil {
+	if err := SetEnvironmentSecrets(params.Repo, prefix, deployUser, deployPath, sshResult.DeployPublicKey, server.IP, dockerHubUsername, dockerHubToken); err != nil {
 		return fmt.Errorf("setting GitHub secrets: %w", err)
 	}
 
-	// Step 7: Generate workflow files
-	report(7, "Generating workflow files...")
-	if err := generateWorkflowFile(params.EnvName, params.DockerImage); err != nil {
+	// Step 8: Generate workflow files
+	report(8, "Generating workflow files...")
+	if err := generateWorkflowFile(params.EnvName, dockerImage); err != nil {
 		return fmt.Errorf("generating workflow: %w", err)
 	}
 
-	// Step 8: Update config
-	report(8, "Updating config...")
+	// Step 9: Update config
+	report(9, "Updating config...")
 	branch := "dev"
 	if params.EnvName == "prod" {
 		branch = "main"

@@ -6,6 +6,7 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/dukerupert/annuminas v0.0.0-00010101000000-000000000000
 	github.com/dukerupert/fornost v0.0.0-00010101000000-000000000000
 	github.com/dukerupert/gwaihir v0.0.0-00010101000000-000000000000
 	github.com/dukerupert/shadowfax v0.0.0-00010101000000-000000000000
@@ -54,6 +55,7 @@ require (
 )
 
 replace (
+	github.com/dukerupert/annuminas => ../annuminas
 	github.com/dukerupert/fornost => ../fornost
 	github.com/dukerupert/gwaihir => ../gwaihir
 	github.com/dukerupert/shadowfax => ../shadowfax

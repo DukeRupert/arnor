@@ -39,15 +39,17 @@ func SetGitHubSecret(repo, name, value string) error {
 
 // SetEnvironmentSecrets sets all GitHub Actions secrets for an environment.
 // prefix is "DEV" or "PROD".
-func SetEnvironmentSecrets(repo, prefix, vpsUser, deployPath, sshKey, vpsHost string) error {
+func SetEnvironmentSecrets(repo, prefix, vpsUser, deployPath, sshKey, vpsHost, dockerHubUsername, dockerHubToken string) error {
 	secrets := map[string]string{
 		prefix + "_VPS_USER":        vpsUser,
 		prefix + "_VPS_DEPLOY_PATH": deployPath,
 		prefix + "_VPS_SSH_KEY":     sshKey,
 	}
 
-	// VPS_HOST is shared across environments
+	// Shared secrets (same across environments)
 	secrets["VPS_HOST"] = vpsHost
+	secrets["DOCKERHUB_USERNAME"] = dockerHubUsername
+	secrets["DOCKERHUB_TOKEN"] = dockerHubToken
 
 	for name, value := range secrets {
 		if err := SetGitHubSecret(repo, name, value); err != nil {

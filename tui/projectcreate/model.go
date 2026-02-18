@@ -19,7 +19,6 @@ type phase int
 const (
 	phaseSelectRepo phase = iota
 	phaseSelectServer
-	phaseDockerImage
 	phaseSelectEnv
 	phaseDomain
 	phasePort
@@ -58,7 +57,6 @@ type Model struct {
 	repo        string // owner/repo format
 	serverName  string
 	serverIP    string
-	dockerImage string
 	envName     string
 	domain      string
 	port        int
@@ -105,13 +103,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateSelectRepo(msg)
 	case phaseSelectServer:
 		return m.updateSelectServer(msg)
-	case phaseDockerImage:
-		return m.updateTextInput(msg, func(val string) (tea.Model, tea.Cmd) {
-			m.dockerImage = val
-			m.phase = phaseSelectEnv
-			m.textInput.Blur()
-			return m, nil
-		})
 	case phaseSelectEnv:
 		return m.updateSelectEnv(msg)
 	case phaseDomain:
@@ -204,11 +195,8 @@ func (m Model) updateSelectServer(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.peonKey = peonKey
 
-			m.phase = phaseDockerImage
-			m.textInput.SetValue("")
-			m.textInput.Placeholder = m.repo
-			m.textInput.Focus()
-			return m, textinput.Blink
+			m.phase = phaseSelectEnv
+			return m, nil
 		case "esc":
 			return m.goBack()
 		}
@@ -358,16 +346,9 @@ func (m Model) goBack() (tea.Model, tea.Cmd) {
 	case phaseSelectServer:
 		m.phase = phaseSelectRepo
 		return m, nil
-	case phaseDockerImage:
-		m.phase = phaseSelectServer
-		m.textInput.Blur()
-		return m, nil
 	case phaseSelectEnv:
-		m.phase = phaseDockerImage
-		m.textInput.SetValue(m.dockerImage)
-		m.textInput.Placeholder = m.repo
-		m.textInput.Focus()
-		return m, textinput.Blink
+		m.phase = phaseSelectServer
+		return m, nil
 	case phaseDomain:
 		m.phase = phaseSelectEnv
 		m.textInput.Blur()
@@ -402,7 +383,6 @@ func (m Model) runSetup() tea.Cmd {
 		EnvName:     m.envName,
 		Domain:      m.domain,
 		Port:        m.port,
-		DockerImage: m.dockerImage,
 		PeonKey:     m.peonKey,
 		OnProgress: func(step, total int, message string) {
 			ch <- progressMsg{step: step, total: total, message: message}
@@ -474,11 +454,6 @@ func (m Model) View() string {
 		}
 		b.WriteString(tui.HelpStyle.Render("\nj/k: navigate  enter: select  esc: back"))
 
-	case phaseDockerImage:
-		b.WriteString("\nDocker image:\n\n")
-		b.WriteString(m.textInput.View())
-		b.WriteString(tui.HelpStyle.Render("\nenter: next  esc: back"))
-
 	case phaseSelectEnv:
 		b.WriteString("\nEnvironment:\n\n")
 		for i, env := range envChoices {
@@ -544,9 +519,6 @@ func (m Model) renderSummary() string {
 	}
 	if m.serverName != "" && m.phase > phaseSelectServer {
 		render("Server", fmt.Sprintf("%s (%s)", m.serverName, m.serverIP))
-	}
-	if m.dockerImage != "" && m.phase > phaseDockerImage {
-		render("Docker", m.dockerImage)
 	}
 	if m.envName != "" && m.phase > phaseSelectEnv {
 		render("Env", m.envName)
