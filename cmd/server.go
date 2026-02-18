@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/dukerupert/arnor/internal/config"
@@ -143,11 +146,64 @@ func runServerInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Println("\nPeon private key:")
-	fmt.Println("──────────────────────────────────────────────")
-	fmt.Println(key)
-	fmt.Println("──────────────────────────────────────────────")
-	fmt.Println("\nSave this key and add it to ~/.dotfiles/.env as:")
-	fmt.Println("  PEON_SSH_KEY=\"$(cat /path/to/saved/key)\"")
+	// Save key to ~/.ssh/peon_ed25519_<host>
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("could not determine home directory: %w", err)
+	}
+
+	// Strip port if present for the filename
+	hostName := host
+	if idx := strings.Index(host, ":"); idx != -1 {
+		hostName = host[:idx]
+	}
+
+	keyFile := fmt.Sprintf("peon_ed25519_%s", hostName)
+	keyPath := filepath.Join(home, ".ssh", keyFile)
+	if err := os.WriteFile(keyPath, []byte(key+"\n"), 0600); err != nil {
+		return fmt.Errorf("failed to write key to %s: %w", keyPath, err)
+	}
+	fmt.Printf("Peon private key saved to %s\n", keyPath)
+
+	// Update ~/.dotfiles/.env with PEON_SSH_KEY_<host> path
+	envKey := fmt.Sprintf("PEON_SSH_KEY_%s", strings.ReplaceAll(hostName, ".", "_"))
+	envPath := filepath.Join(home, ".dotfiles", ".env")
+	if err := upsertEnvVar(envPath, envKey, keyPath); err != nil {
+		return fmt.Errorf("failed to update %s: %w", envPath, err)
+	}
+	fmt.Printf("%s=%s written to %s\n", envKey, keyPath, envPath)
+
 	return nil
+}
+
+// upsertEnvVar updates or appends a KEY=value line in the given env file.
+func upsertEnvVar(path, key, value string) error {
+	line := fmt.Sprintf("%s=%s", key, value)
+	prefix := key + "="
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return os.WriteFile(path, []byte(line+"\n"), 0600)
+		}
+		return err
+	}
+
+	scanner := bufio.NewScanner(strings.NewReader(string(content)))
+	var lines []string
+	replaced := false
+	for scanner.Scan() {
+		l := scanner.Text()
+		if strings.HasPrefix(l, prefix) {
+			lines = append(lines, line)
+			replaced = true
+		} else {
+			lines = append(lines, l)
+		}
+	}
+	if !replaced {
+		lines = append(lines, line)
+	}
+
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0600)
 }
