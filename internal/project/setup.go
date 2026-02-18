@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -151,7 +150,7 @@ func Setup(params SetupParams) error {
 
 	// Step 8: Generate workflow files
 	report(8, "Generating workflow files...")
-	if err := generateWorkflowFile(params.EnvName, dockerImage); err != nil {
+	if err := generateWorkflowFile(params.Repo, params.EnvName, dockerImage); err != nil {
 		return fmt.Errorf("generating workflow: %w", err)
 	}
 
@@ -257,7 +256,7 @@ func writeCaddyConfig(serverIP, peonKeyPEM, domain, caddyConfig string) error {
 	return nil
 }
 
-func generateWorkflowFile(envName, dockerImage string) error {
+func generateWorkflowFile(repo, envName, dockerImage string) error {
 	var content string
 	var filename string
 	var err error
@@ -276,15 +275,13 @@ func generateWorkflowFile(envName, dockerImage string) error {
 		return err
 	}
 
-	dir := filepath.Join(".github", "workflows")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("creating workflows dir: %w", err)
+	branch, err := DefaultBranch(repo)
+	if err != nil {
+		return fmt.Errorf("detecting default branch: %w", err)
 	}
 
-	path := filepath.Join(dir, filename)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		return fmt.Errorf("writing %s: %w", path, err)
-	}
+	path := ".github/workflows/" + filename
+	commitMsg := fmt.Sprintf("Add %s deploy workflow", envName)
 
-	return nil
+	return PushWorkflowFile(repo, path, content, branch, commitMsg)
 }

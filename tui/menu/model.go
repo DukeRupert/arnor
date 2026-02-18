@@ -16,6 +16,7 @@ type menuItem struct {
 var items = []menuItem{
 	{"Server Init", tui.ScreenServerInit},
 	{"Project Create", tui.ScreenProjectCreate},
+	{"Deploy", tui.ScreenDeploy},
 }
 
 // Model is the main menu screen.

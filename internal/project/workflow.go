@@ -8,6 +8,7 @@ import (
 var devWorkflowTmpl = template.Must(template.New("dev").Parse(`name: Deploy Dev
 
 on:
+  workflow_dispatch:
   push:
     branches: [dev]
 
@@ -23,34 +24,34 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
-          username: {{ "{{" }} secrets.DOCKERHUB_USERNAME {{ "}}" }}
-          password: {{ "{{" }} secrets.DOCKERHUB_TOKEN {{ "}}" }}
+          username: ${{ "{{" }} secrets.DOCKERHUB_USERNAME {{ "}}" }}
+          password: ${{ "{{" }} secrets.DOCKERHUB_TOKEN {{ "}}" }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: {{ "{{" }} env.IMAGE_NAME {{ "}}" }}:dev-{{ "{{" }} github.sha {{ "}}" }}
+          tags: ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:dev-${{ "{{" }} github.sha {{ "}}" }}
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
         with:
-          host: {{ "{{" }} secrets.VPS_HOST {{ "}}" }}
-          username: {{ "{{" }} secrets.DEV_VPS_USER {{ "}}" }}
-          key: {{ "{{" }} secrets.DEV_VPS_SSH_KEY {{ "}}" }}
+          host: ${{ "{{" }} secrets.VPS_HOST {{ "}}" }}
+          username: ${{ "{{" }} secrets.DEV_VPS_USER {{ "}}" }}
+          key: ${{ "{{" }} secrets.DEV_VPS_SSH_KEY {{ "}}" }}
           script: |
-            cd {{ "{{" }} secrets.DEV_VPS_DEPLOY_PATH {{ "}}" }}
-            docker pull {{ "{{" }} env.IMAGE_NAME {{ "}}" }}:dev-{{ "{{" }} github.sha {{ "}}" }}
+            cd ${{ "{{" }} secrets.DEV_VPS_DEPLOY_PATH {{ "}}" }}
+            docker pull ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:dev-${{ "{{" }} github.sha {{ "}}" }}
             docker compose down || true
-            export IMAGE_TAG=dev-{{ "{{" }} github.sha {{ "}}" }}
-            export PORT={{ "{{" }} secrets.DEV_PORT {{ "}}" }}
+            export IMAGE_TAG=dev-${{ "{{" }} github.sha {{ "}}" }}
             docker compose up -d
 `))
 
 var prodWorkflowTmpl = template.Must(template.New("prod").Parse(`name: Deploy Prod
 
 on:
+  workflow_dispatch:
   push:
     tags: ["v*"]
     branches: [main]
@@ -71,8 +72,8 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
-          username: {{ "{{" }} secrets.DOCKERHUB_USERNAME {{ "}}" }}
-          password: {{ "{{" }} secrets.DOCKERHUB_TOKEN {{ "}}" }}
+          username: ${{ "{{" }} secrets.DOCKERHUB_USERNAME {{ "}}" }}
+          password: ${{ "{{" }} secrets.DOCKERHUB_TOKEN {{ "}}" }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -80,21 +81,20 @@ jobs:
           context: .
           push: true
           tags: |
-            {{ "{{" }} env.IMAGE_NAME {{ "}}" }}:{{ "{{" }} steps.version.outputs.tag {{ "}}" }}
-            {{ "{{" }} env.IMAGE_NAME {{ "}}" }}:latest
+            ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:${{ "{{" }} steps.version.outputs.tag {{ "}}" }}
+            ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:latest
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
         with:
-          host: {{ "{{" }} secrets.VPS_HOST {{ "}}" }}
-          username: {{ "{{" }} secrets.PROD_VPS_USER {{ "}}" }}
-          key: {{ "{{" }} secrets.PROD_VPS_SSH_KEY {{ "}}" }}
+          host: ${{ "{{" }} secrets.VPS_HOST {{ "}}" }}
+          username: ${{ "{{" }} secrets.PROD_VPS_USER {{ "}}" }}
+          key: ${{ "{{" }} secrets.PROD_VPS_SSH_KEY {{ "}}" }}
           script: |
-            cd {{ "{{" }} secrets.PROD_VPS_DEPLOY_PATH {{ "}}" }}
-            docker pull {{ "{{" }} env.IMAGE_NAME {{ "}}" }}:{{ "{{" }} steps.version.outputs.tag {{ "}}" }}
+            cd ${{ "{{" }} secrets.PROD_VPS_DEPLOY_PATH {{ "}}" }}
+            docker pull ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:${{ "{{" }} steps.version.outputs.tag {{ "}}" }}
             docker compose down || true
-            export IMAGE_TAG={{ "{{" }} steps.version.outputs.tag {{ "}}" }}
-            export PORT={{ "{{" }} secrets.PROD_PORT {{ "}}" }}
+            export IMAGE_TAG=${{ "{{" }} steps.version.outputs.tag {{ "}}" }}
             docker compose up -d
 `))
 

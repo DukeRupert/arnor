@@ -8,6 +8,7 @@ import (
 	"github.com/dukerupert/arnor/internal/hetzner"
 	"github.com/dukerupert/arnor/internal/project"
 	"github.com/dukerupert/arnor/tui"
+	"github.com/dukerupert/arnor/tui/deploy"
 	"github.com/dukerupert/arnor/tui/menu"
 	"github.com/dukerupert/arnor/tui/projectcreate"
 	"github.com/dukerupert/arnor/tui/serverinit"
@@ -55,6 +56,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		tui.ScreenMenu:          menu.New(),
 		tui.ScreenServerInit:    serverinit.New(servers),
 		tui.ScreenProjectCreate: projectcreate.New(repos, servers),
+		tui.ScreenDeploy:        deploy.New(cfg.Projects),
 	}
 
 	factories := map[tui.Screen]tui.ScreenFactory{
@@ -63,6 +65,13 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		},
 		tui.ScreenProjectCreate: func() tea.Model {
 			return projectcreate.New(repos, servers)
+		},
+		tui.ScreenDeploy: func() tea.Model {
+			// Re-load config so newly created projects appear.
+			if fresh, err := config.Load(); err == nil {
+				return deploy.New(fresh.Projects)
+			}
+			return deploy.New(cfg.Projects)
 		},
 	}
 

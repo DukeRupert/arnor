@@ -13,6 +13,7 @@ const (
 	ScreenMenu Screen = iota
 	ScreenServerInit
 	ScreenProjectCreate
+	ScreenDeploy
 )
 
 // SwitchScreenMsg tells the app to switch to a different screen.
