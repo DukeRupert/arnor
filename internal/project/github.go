@@ -115,6 +115,8 @@ func EnsureWorkflowDispatch(repo, envName, projectName string) error {
 		return fmt.Errorf("getting default branch: %w", err)
 	}
 
+	dockerImage := os.Getenv("DOCKERHUB_USERNAME") + "/" + projectName
+
 	// Try to fetch the existing workflow file.
 	cmd := exec.Command("gh", "api",
 		fmt.Sprintf("repos/%s/contents/%s?ref=%s", repo, path, branch),
@@ -123,8 +125,6 @@ func EnsureWorkflowDispatch(repo, envName, projectName string) error {
 
 	if err != nil {
 		// File doesn't exist — generate and push a fresh copy.
-		dockerImage := os.Getenv("DOCKERHUB_USERNAME") + "/" + projectName
-
 		var content string
 		switch envName {
 		case "dev":
@@ -138,10 +138,10 @@ func EnsureWorkflowDispatch(repo, envName, projectName string) error {
 			return fmt.Errorf("generating workflow: %w", err)
 		}
 		return PushWorkflowFile(repo, path, content, branch,
-			fmt.Sprintf("Add %s deploy workflow with workflow_dispatch", envName))
+			fmt.Sprintf("Add %s deploy workflow", envName))
 	}
 
-	// File exists — check if it already has workflow_dispatch.
+	// File exists — check if it's up to date.
 	decoded, err := base64.StdEncoding.DecodeString(
 		strings.ReplaceAll(strings.TrimSpace(string(out)), "\n", ""))
 	if err != nil {
@@ -149,18 +149,26 @@ func EnsureWorkflowDispatch(repo, envName, projectName string) error {
 	}
 
 	content := string(decoded)
-	if strings.Contains(content, "workflow_dispatch") {
+	if strings.Contains(content, "workflow_dispatch") && strings.Contains(content, "scp-action") {
 		return nil
 	}
 
-	// Patch: insert workflow_dispatch after the "on:" line.
-	updated := strings.Replace(content, "on:\n", "on:\n  workflow_dispatch:\n", 1)
-	if updated == content {
-		return fmt.Errorf("could not patch %s — unexpected on: block format", filename)
+	// Workflow is out of date — regenerate from template.
+	var updated string
+	switch envName {
+	case "dev":
+		updated, err = GenerateDevWorkflow(dockerImage)
+	case "prod":
+		updated, err = GenerateProdWorkflow(dockerImage)
+	default:
+		return fmt.Errorf("unknown environment: %s", envName)
+	}
+	if err != nil {
+		return fmt.Errorf("generating workflow: %w", err)
 	}
 
 	return PushWorkflowFile(repo, path, updated, branch,
-		fmt.Sprintf("Add workflow_dispatch trigger to %s", filename))
+		fmt.Sprintf("Update %s deploy workflow", envName))
 }
 
 // WorkflowFile returns the workflow filename for a given environment.

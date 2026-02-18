@@ -34,6 +34,16 @@ jobs:
           push: true
           tags: ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:dev-${{ "{{" }} github.sha {{ "}}" }}
 
+      - name: Copy config files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ "{{" }} secrets.VPS_HOST {{ "}}" }}
+          username: ${{ "{{" }} secrets.DEV_VPS_USER {{ "}}" }}
+          key: ${{ "{{" }} secrets.DEV_VPS_SSH_KEY {{ "}}" }}
+          source: "docker-compose.yml,.env"
+          target: ${{ "{{" }} secrets.DEV_VPS_DEPLOY_PATH {{ "}}" }}
+          overwrite: true
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
         with:
@@ -83,6 +93,16 @@ jobs:
           tags: |
             ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:${{ "{{" }} steps.version.outputs.tag {{ "}}" }}
             ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:latest
+
+      - name: Copy config files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ "{{" }} secrets.VPS_HOST {{ "}}" }}
+          username: ${{ "{{" }} secrets.PROD_VPS_USER {{ "}}" }}
+          key: ${{ "{{" }} secrets.PROD_VPS_SSH_KEY {{ "}}" }}
+          source: "docker-compose.yml,.env"
+          target: ${{ "{{" }} secrets.PROD_VPS_DEPLOY_PATH {{ "}}" }}
+          overwrite: true
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
