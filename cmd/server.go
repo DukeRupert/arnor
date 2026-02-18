@@ -7,7 +7,9 @@ import (
 
 	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/arnor/internal/hetzner"
+	"github.com/dukerupert/arnor/internal/peon"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var serverCmd = &cobra.Command{
@@ -28,9 +30,21 @@ var serverViewCmd = &cobra.Command{
 	RunE:  runServerView,
 }
 
+var serverInitCmd = &cobra.Command{
+	Use:   "init",
+	Short: "Bootstrap the peon deploy user on a remote server",
+	Long:  "Connects to a VPS via SSH and runs the peon bootstrap script to create the peon user with sudo, Docker, and SSH keys.",
+	RunE:  runServerInit,
+}
+
 func init() {
+	serverInitCmd.Flags().String("host", "", "Server IP or hostname (required)")
+	serverInitCmd.Flags().String("user", "root", "SSH user to connect as")
+	serverInitCmd.MarkFlagRequired("host")
+
 	serverCmd.AddCommand(serverListCmd)
 	serverCmd.AddCommand(serverViewCmd)
+	serverCmd.AddCommand(serverInitCmd)
 	rootCmd.AddCommand(serverCmd)
 }
 
@@ -97,5 +111,46 @@ func runServerView(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Location:   %s (%s)\n", s.Datacenter.Location.Name, s.Datacenter.Location.City)
 	fmt.Printf("Project:    %s\n", s.ProjectAlias)
 	fmt.Printf("Created:    %s\n", s.Created)
+	return nil
+}
+
+func runServerInit(cmd *cobra.Command, args []string) error {
+	host, _ := cmd.Flags().GetString("host")
+	user, _ := cmd.Flags().GetString("user")
+
+	fmt.Printf("SSH password for %s@%s: ", user, host)
+	sshPassBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Println()
+	if err != nil {
+		return fmt.Errorf("failed to read password: %w", err)
+	}
+	sshPass := string(sshPassBytes)
+
+	var sudoPass string
+	if user != "root" {
+		fmt.Printf("Sudo password (enter to reuse SSH password): ")
+		sudoPassBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Println()
+		if err != nil {
+			return fmt.Errorf("failed to read sudo password: %w", err)
+		}
+		sudoPass = string(sudoPassBytes)
+		if sudoPass == "" {
+			sudoPass = sshPass
+		}
+	}
+
+	fmt.Printf("Bootstrapping peon on %s...\n", host)
+	key, err := peon.RunRemote(host, user, sshPass, sudoPass)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("\nPeon private key:")
+	fmt.Println("──────────────────────────────────────────────")
+	fmt.Println(key)
+	fmt.Println("──────────────────────────────────────────────")
+	fmt.Println("\nSave this key and add it to ~/.dotfiles/.env as:")
+	fmt.Println("  PEON_SSH_KEY=\"$(cat /path/to/saved/key)\"")
 	return nil
 }
