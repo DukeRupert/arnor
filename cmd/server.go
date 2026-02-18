@@ -118,30 +118,27 @@ func runServerInit(cmd *cobra.Command, args []string) error {
 	host, _ := cmd.Flags().GetString("host")
 	user, _ := cmd.Flags().GetString("user")
 
-	fmt.Printf("SSH password for %s@%s: ", user, host)
-	sshPassBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Println()
-	if err != nil {
-		return fmt.Errorf("failed to read password: %w", err)
+	auth := peon.SSHAuth{
+		KeyPassphraseFunc: func() ([]byte, error) {
+			fmt.Printf("SSH key passphrase: ")
+			pass, err := term.ReadPassword(int(os.Stdin.Fd()))
+			fmt.Println()
+			return pass, err
+		},
 	}
-	sshPass := string(sshPassBytes)
 
-	var sudoPass string
 	if user != "root" {
-		fmt.Printf("Sudo password (enter to reuse SSH password): ")
+		fmt.Printf("Sudo password for %s@%s: ", user, host)
 		sudoPassBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Println()
 		if err != nil {
 			return fmt.Errorf("failed to read sudo password: %w", err)
 		}
-		sudoPass = string(sudoPassBytes)
-		if sudoPass == "" {
-			sudoPass = sshPass
-		}
+		auth.SudoPassword = string(sudoPassBytes)
 	}
 
 	fmt.Printf("Bootstrapping peon on %s...\n", host)
-	key, err := peon.RunRemote(host, user, sshPass, sudoPass)
+	key, err := peon.RunRemote(host, user, auth)
 	if err != nil {
 		return err
 	}
