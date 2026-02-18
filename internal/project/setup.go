@@ -74,12 +74,13 @@ func Setup(params SetupParams) error {
 	// Step 3: Create DockerHub repo
 	report(3, "Creating DockerHub repo...")
 	dockerHubUsername := os.Getenv("DOCKERHUB_USERNAME")
+	dockerHubPassword := os.Getenv("DOCKERHUB_PASSWORD")
 	dockerHubToken := os.Getenv("DOCKERHUB_TOKEN")
-	if dockerHubUsername == "" || dockerHubToken == "" {
-		return fmt.Errorf("DOCKERHUB_USERNAME and DOCKERHUB_TOKEN env vars must be set")
+	if dockerHubUsername == "" || dockerHubPassword == "" {
+		return fmt.Errorf("DOCKERHUB_USERNAME and DOCKERHUB_PASSWORD env vars must be set")
 	}
 	dockerImage := dockerHubUsername + "/" + params.ProjectName
-	dhClient := dockerhub.NewClient(dockerHubUsername, dockerHubToken)
+	dhClient := dockerhub.NewClient(dockerHubUsername, dockerHubPassword)
 	if err := dhClient.EnsureRepo(dockerHubUsername, params.ProjectName); err != nil {
 		return fmt.Errorf("creating DockerHub repo: %w", err)
 	}
@@ -122,7 +123,12 @@ func Setup(params SetupParams) error {
 	// Step 7: Set GitHub Actions secrets
 	report(7, "Setting GitHub secrets...")
 	prefix := strings.ToUpper(params.EnvName)
-	if err := SetEnvironmentSecrets(params.Repo, prefix, deployUser, deployPath, sshResult.DeployPublicKey, server.IP, dockerHubUsername, dockerHubToken); err != nil {
+	// Prefer PAT for CI (narrower scope); fall back to password
+	dockerHubCI := dockerHubToken
+	if dockerHubCI == "" {
+		dockerHubCI = dockerHubPassword
+	}
+	if err := SetEnvironmentSecrets(params.Repo, prefix, deployUser, deployPath, sshResult.DeployPublicKey, server.IP, dockerHubUsername, dockerHubCI); err != nil {
 		return fmt.Errorf("setting GitHub secrets: %w", err)
 	}
 
