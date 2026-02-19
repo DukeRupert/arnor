@@ -32,7 +32,7 @@ type SetupParams struct {
 
 // Setup runs the full project creation orchestration for a single environment.
 func Setup(params SetupParams) error {
-	const totalSteps = 9
+	const totalSteps = 10
 	report := func(step int, message string) {
 		if params.OnProgress != nil {
 			params.OnProgress(step, totalSteps, message)
@@ -106,15 +106,21 @@ func Setup(params SetupParams) error {
 		return fmt.Errorf("SSH setup: %w", err)
 	}
 
-	// Step 5: Write Caddy config
-	report(5, "Writing Caddy config...")
+	// Step 5: Write docker-compose.yml
+	report(5, "Writing docker-compose.yml...")
+	if err := writeComposeFile(server.IP, peonKey, deployPath, deployUser, dockerImage, params.Port); err != nil {
+		return fmt.Errorf("writing docker-compose.yml: %w", err)
+	}
+
+	// Step 6: Write Caddy config
+	report(6, "Writing Caddy config...")
 	caddyConfig := caddy.Generate(params.Domain, params.Port)
 	if err := writeCaddyConfig(server.IP, peonKey, params.Domain, caddyConfig); err != nil {
 		return fmt.Errorf("writing Caddy config: %w", err)
 	}
 
-	// Step 6: Create DNS records
-	report(6, "Creating DNS records...")
+	// Step 7: Create DNS records
+	report(7, "Creating DNS records...")
 
 	// Split domain into root domain and subdomain name for the DNS API.
 	// e.g. "foo.angmar.dev" -> root "angmar.dev", subName "foo"
@@ -148,8 +154,8 @@ func Setup(params SetupParams) error {
 	}
 	provider.CreateRecord(rootDomain, wwwName, "CNAME", params.Domain, "600")
 
-	// Step 7: Set GitHub Actions secrets
-	report(7, "Setting GitHub secrets...")
+	// Step 8: Set GitHub Actions secrets
+	report(8, "Setting GitHub secrets...")
 	prefix := strings.ToUpper(params.EnvName)
 	// Prefer PAT for CI (narrower scope); fall back to password
 	dockerHubCI := dockerHubToken
@@ -160,14 +166,14 @@ func Setup(params SetupParams) error {
 		return fmt.Errorf("setting GitHub secrets: %w", err)
 	}
 
-	// Step 8: Generate workflow files
-	report(8, "Generating workflow files...")
+	// Step 9: Generate workflow files
+	report(9, "Generating workflow files...")
 	if err := generateWorkflowFile(params.Repo, params.EnvName, dockerImage); err != nil {
 		return fmt.Errorf("generating workflow: %w", err)
 	}
 
-	// Step 9: Update config
-	report(9, "Updating config...")
+	// Step 10: Update config
+	report(10, "Updating config...")
 	branch := "dev"
 	if params.EnvName == "prod" {
 		branch = "main"
@@ -265,6 +271,61 @@ func writeCaddyConfig(serverIP, peonKeyPEM, domain, caddyConfig string) error {
 	if err := runSSHCommand(client, "sudo systemctl reload caddy"); err != nil {
 		return fmt.Errorf("reloading caddy: %w", err)
 	}
+	return nil
+}
+
+func writeComposeFile(serverIP, peonKeyPEM, deployPath, deployUser, dockerImage string, port int) error {
+	content := fmt.Sprintf(`services:
+  web:
+    image: ${DOCKER_IMAGE:-%s}
+    ports:
+      - "${LISTEN_PORT:-%d}:80"
+    restart: unless-stopped
+`, dockerImage, port)
+
+	signer, err := ssh.ParsePrivateKey([]byte(peonKeyPEM))
+	if err != nil {
+		return fmt.Errorf("parsing peon SSH key: %w", err)
+	}
+
+	sshConfig := &ssh.ClientConfig{
+		User:            "peon",
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	}
+
+	client, err := ssh.Dial("tcp", serverIP+":22", sshConfig)
+	if err != nil {
+		return fmt.Errorf("SSH dial to %s: %w", serverIP, err)
+	}
+	defer client.Close()
+
+	composePath := deployPath + "/docker-compose.yml"
+
+	// Write file via sudo tee
+	session, err := client.NewSession()
+	if err != nil {
+		return fmt.Errorf("creating SSH session: %w", err)
+	}
+	var stderr bytes.Buffer
+	session.Stdin = strings.NewReader(content)
+	session.Stderr = &stderr
+	if err := session.Run(fmt.Sprintf("sudo tee %s > /dev/null", composePath)); err != nil {
+		errMsg := strings.TrimSpace(stderr.String())
+		session.Close()
+		if errMsg != "" {
+			return fmt.Errorf("writing compose file: %s", errMsg)
+		}
+		return fmt.Errorf("writing compose file: %w", err)
+	}
+	session.Close()
+
+	// Chown to deploy user
+	if err := runSSHCommand(client, fmt.Sprintf("sudo chown %s:%s %s", deployUser, deployUser, composePath)); err != nil {
+		return fmt.Errorf("chowning compose file: %w", err)
+	}
+
 	return nil
 }
 
