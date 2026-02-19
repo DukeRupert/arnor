@@ -34,16 +34,6 @@ jobs:
           push: true
           tags: ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:dev-${{ "{{" }} github.sha {{ "}}" }}
 
-      - name: Copy config files to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ "{{" }} secrets.VPS_HOST {{ "}}" }}
-          username: ${{ "{{" }} secrets.DEV_VPS_USER {{ "}}" }}
-          key: ${{ "{{" }} secrets.DEV_VPS_SSH_KEY {{ "}}" }}
-          source: "docker-compose.yml,.env"
-          target: ${{ "{{" }} secrets.DEV_VPS_DEPLOY_PATH {{ "}}" }}
-          overwrite: true
-
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
         with:
@@ -53,9 +43,9 @@ jobs:
           script: |
             echo "${{ "{{" }} secrets.DOCKERHUB_TOKEN {{ "}}" }}" | docker login -u "${{ "{{" }} secrets.DOCKERHUB_USERNAME {{ "}}" }}" --password-stdin
             cd ${{ "{{" }} secrets.DEV_VPS_DEPLOY_PATH {{ "}}" }}
-            docker pull ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:dev-${{ "{{" }} github.sha {{ "}}" }}
+            export DOCKER_IMAGE=${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:dev-${{ "{{" }} github.sha {{ "}}" }}
+            docker compose pull
             docker compose down || true
-            export IMAGE_TAG=dev-${{ "{{" }} github.sha {{ "}}" }}
             docker compose up -d
 `))
 
@@ -95,16 +85,6 @@ jobs:
             ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:${{ "{{" }} steps.version.outputs.tag {{ "}}" }}
             ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:latest
 
-      - name: Copy config files to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ "{{" }} secrets.VPS_HOST {{ "}}" }}
-          username: ${{ "{{" }} secrets.PROD_VPS_USER {{ "}}" }}
-          key: ${{ "{{" }} secrets.PROD_VPS_SSH_KEY {{ "}}" }}
-          source: "docker-compose.yml,.env"
-          target: ${{ "{{" }} secrets.PROD_VPS_DEPLOY_PATH {{ "}}" }}
-          overwrite: true
-
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
         with:
@@ -114,9 +94,9 @@ jobs:
           script: |
             echo "${{ "{{" }} secrets.DOCKERHUB_TOKEN {{ "}}" }}" | docker login -u "${{ "{{" }} secrets.DOCKERHUB_USERNAME {{ "}}" }}" --password-stdin
             cd ${{ "{{" }} secrets.PROD_VPS_DEPLOY_PATH {{ "}}" }}
-            docker pull ${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:${{ "{{" }} steps.version.outputs.tag {{ "}}" }}
+            export DOCKER_IMAGE=${{ "{{" }} env.IMAGE_NAME {{ "}}" }}:${{ "{{" }} steps.version.outputs.tag {{ "}}" }}
+            docker compose pull
             docker compose down || true
-            export IMAGE_TAG=${{ "{{" }} steps.version.outputs.tag {{ "}}" }}
             docker compose up -d
 `))
 
