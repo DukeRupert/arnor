@@ -18,6 +18,7 @@ var items = []menuItem{
 	{"Project Create", tui.ScreenProjectCreate},
 	{"Deploy", tui.ScreenDeploy},
 	{"Project Inspect", tui.ScreenProjectInspect},
+	{"Containers", tui.ScreenDockerPS},
 }
 
 // Model is the main menu screen.

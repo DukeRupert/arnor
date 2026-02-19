@@ -9,6 +9,7 @@ import (
 	"github.com/dukerupert/arnor/internal/project"
 	"github.com/dukerupert/arnor/tui"
 	"github.com/dukerupert/arnor/tui/deploy"
+	"github.com/dukerupert/arnor/tui/dockerps"
 	"github.com/dukerupert/arnor/tui/menu"
 	"github.com/dukerupert/arnor/tui/projectcreate"
 	"github.com/dukerupert/arnor/tui/projectinspect"
@@ -59,6 +60,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		tui.ScreenProjectCreate:  projectcreate.New(repos, servers),
 		tui.ScreenDeploy:         deploy.New(cfg.Projects),
 		tui.ScreenProjectInspect: projectinspect.New(cfg.Projects),
+		tui.ScreenDockerPS:       dockerps.New(servers),
 	}
 
 	factories := map[tui.Screen]tui.ScreenFactory{
@@ -80,6 +82,9 @@ func runTUI(cmd *cobra.Command, args []string) error {
 				return projectinspect.New(fresh.Projects)
 			}
 			return projectinspect.New(cfg.Projects)
+		},
+		tui.ScreenDockerPS: func() tea.Model {
+			return dockerps.New(servers)
 		},
 	}
 

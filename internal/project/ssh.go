@@ -93,6 +93,64 @@ func runSSHCommandOutput(client *ssh.Client, command string) (string, error) {
 	return string(out), nil
 }
 
+// DockerContainer holds parsed output from docker ps.
+type DockerContainer struct {
+	Name   string
+	Image  string
+	Status string
+	Ports  string
+}
+
+// DockerPS SSHs into the server as peon and returns running Docker containers.
+func DockerPS(serverIP, peonKeyPEM string) ([]DockerContainer, error) {
+	signer, err := ssh.ParsePrivateKey([]byte(peonKeyPEM))
+	if err != nil {
+		return nil, fmt.Errorf("parsing peon SSH key: %w", err)
+	}
+
+	config := &ssh.ClientConfig{
+		User:            "peon",
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	}
+
+	client, err := ssh.Dial("tcp", serverIP+":22", config)
+	if err != nil {
+		return nil, fmt.Errorf("SSH dial to %s: %w", serverIP, err)
+	}
+	defer client.Close()
+
+	output, err := runSSHCommandOutput(client, `docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'`)
+	if err != nil {
+		return nil, fmt.Errorf("running docker ps: %w", err)
+	}
+
+	var containers []DockerContainer
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 4)
+		c := DockerContainer{}
+		if len(parts) > 0 {
+			c.Name = parts[0]
+		}
+		if len(parts) > 1 {
+			c.Image = parts[1]
+		}
+		if len(parts) > 2 {
+			c.Status = parts[2]
+		}
+		if len(parts) > 3 {
+			c.Ports = parts[3]
+		}
+		containers = append(containers, c)
+	}
+
+	return containers, nil
+}
+
 // hostPortRe matches host-side port bindings in docker ps output, e.g. "0.0.0.0:3000->3000/tcp".
 var hostPortRe = regexp.MustCompile(`:(\d+)->`)
 

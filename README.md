@@ -78,6 +78,14 @@ arnor project view myclient # Show project details with environments
 arnor project create        # Interactive wizard for full project setup
 ```
 
+### Containers
+
+```bash
+arnor tui  # Navigate to "Containers" to view running Docker containers on any VPS
+```
+
+Connects via SSH as `peon` and displays all running containers with name, image, status, and port bindings in a scrollable card view.
+
 ### Project Create Workflow
 
 `arnor project create` is the primary function — it replaces manual server setup with an interactive wizard that:
