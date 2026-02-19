@@ -13,7 +13,7 @@ import (
 
 // SSHResult contains output from SSH setup commands.
 type SSHResult struct {
-	DeployPublicKey string
+	DeployPrivateKey string
 }
 
 // RunSetup connects to the VPS as peon and creates the deploy user,
@@ -67,7 +67,7 @@ func RunSetup(serverIP, deployUser, deployPath, peonKeyPEM string) (*SSHResult, 
 	}
 
 	return &SSHResult{
-		DeployPublicKey: strings.TrimSpace(keyOutput),
+		DeployPrivateKey: strings.TrimSpace(keyOutput),
 	}, nil
 }
 

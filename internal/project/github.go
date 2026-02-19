@@ -77,8 +77,10 @@ func ListWorkflowRuns(repo string, limit int) ([]WorkflowRun, error) {
 }
 
 // SetGitHubSecret sets a repository secret using the gh CLI.
+// Values are passed via stdin to safely handle multi-line content like SSH keys.
 func SetGitHubSecret(repo, name, value string) error {
-	cmd := exec.Command("gh", "secret", "set", name, "--repo", repo, "--body", value)
+	cmd := exec.Command("gh", "secret", "set", name, "--repo", repo)
+	cmd.Stdin = strings.NewReader(value)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("setting secret %s: %w\n%s", name, err, strings.TrimSpace(string(out)))
