@@ -17,6 +17,22 @@ type GitHubRepo struct {
 	NameWithOwner string `json:"nameWithOwner"`
 }
 
+// GitHubSecret represents a repository secret (name + last updated; values are never exposed).
+type GitHubSecret struct {
+	Name      string `json:"name"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+// WorkflowRun represents a recent GitHub Actions workflow run.
+type WorkflowRun struct {
+	DisplayTitle string `json:"displayTitle"`
+	Status       string `json:"status"`
+	Conclusion   string `json:"conclusion"`
+	HeadBranch   string `json:"headBranch"`
+	CreatedAt    string `json:"createdAt"`
+	Event        string `json:"event"`
+}
+
 // ListGitHubRepos returns repositories for the authenticated user via the gh CLI.
 func ListGitHubRepos() ([]GitHubRepo, error) {
 	cmd := exec.Command("gh", "repo", "list", "--json", "name,nameWithOwner", "--limit", "50", "--no-archived")
@@ -29,6 +45,36 @@ func ListGitHubRepos() ([]GitHubRepo, error) {
 		return nil, fmt.Errorf("parsing repo list: %w", err)
 	}
 	return repos, nil
+}
+
+// ListGitHubSecrets returns the secret names and last-updated timestamps for a repo.
+func ListGitHubSecrets(repo string) ([]GitHubSecret, error) {
+	cmd := exec.Command("gh", "secret", "list", "--repo", repo, "--json", "name,updatedAt")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("listing secrets for %s: %w", repo, err)
+	}
+	var secrets []GitHubSecret
+	if err := json.Unmarshal(out, &secrets); err != nil {
+		return nil, fmt.Errorf("parsing secrets: %w", err)
+	}
+	return secrets, nil
+}
+
+// ListWorkflowRuns returns recent workflow runs for a repo.
+func ListWorkflowRuns(repo string, limit int) ([]WorkflowRun, error) {
+	cmd := exec.Command("gh", "run", "list", "--repo", repo,
+		"--json", "displayTitle,status,conclusion,headBranch,createdAt,event",
+		"--limit", fmt.Sprintf("%d", limit))
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("listing workflow runs for %s: %w", repo, err)
+	}
+	var runs []WorkflowRun
+	if err := json.Unmarshal(out, &runs); err != nil {
+		return nil, fmt.Errorf("parsing workflow runs: %w", err)
+	}
+	return runs, nil
 }
 
 // SetGitHubSecret sets a repository secret using the gh CLI.

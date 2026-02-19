@@ -11,6 +11,7 @@ import (
 	"github.com/dukerupert/arnor/tui/deploy"
 	"github.com/dukerupert/arnor/tui/menu"
 	"github.com/dukerupert/arnor/tui/projectcreate"
+	"github.com/dukerupert/arnor/tui/projectinspect"
 	"github.com/dukerupert/arnor/tui/serverinit"
 	"github.com/spf13/cobra"
 )
@@ -53,10 +54,11 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	}
 
 	screens := map[tui.Screen]tea.Model{
-		tui.ScreenMenu:          menu.New(),
-		tui.ScreenServerInit:    serverinit.New(servers),
-		tui.ScreenProjectCreate: projectcreate.New(repos, servers),
-		tui.ScreenDeploy:        deploy.New(cfg.Projects),
+		tui.ScreenMenu:           menu.New(),
+		tui.ScreenServerInit:     serverinit.New(servers),
+		tui.ScreenProjectCreate:  projectcreate.New(repos, servers),
+		tui.ScreenDeploy:         deploy.New(cfg.Projects),
+		tui.ScreenProjectInspect: projectinspect.New(cfg.Projects),
 	}
 
 	factories := map[tui.Screen]tui.ScreenFactory{
@@ -72,6 +74,12 @@ func runTUI(cmd *cobra.Command, args []string) error {
 				return deploy.New(fresh.Projects)
 			}
 			return deploy.New(cfg.Projects)
+		},
+		tui.ScreenProjectInspect: func() tea.Model {
+			if fresh, err := config.Load(); err == nil {
+				return projectinspect.New(fresh.Projects)
+			}
+			return projectinspect.New(cfg.Projects)
 		},
 	}
 

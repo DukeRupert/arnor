@@ -38,10 +38,18 @@ var projectCreateCmd = &cobra.Command{
 	RunE:  runProjectCreate,
 }
 
+var projectInspectCmd = &cobra.Command{
+	Use:   "inspect [name]",
+	Short: "Show GitHub secrets and recent workflow runs for a project",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runProjectInspect,
+}
+
 func init() {
 	projectCmd.AddCommand(projectListCmd)
 	projectCmd.AddCommand(projectViewCmd)
 	projectCmd.AddCommand(projectCreateCmd)
+	projectCmd.AddCommand(projectInspectCmd)
 	rootCmd.AddCommand(projectCmd)
 }
 
@@ -97,6 +105,74 @@ func runProjectView(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  Deploy User: %s\n", env.DeployUser)
 		fmt.Printf("  Port:        %d\n", env.Port)
 	}
+	return nil
+}
+
+func runProjectInspect(cmd *cobra.Command, args []string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+
+	p := cfg.FindProject(args[0])
+	if p == nil {
+		return fmt.Errorf("project not found: %s", args[0])
+	}
+
+	fmt.Printf("Project: %s\n", p.Name)
+	fmt.Printf("Repo:    %s\n\n", p.Repo)
+
+	// Secrets
+	secrets, err := project.ListGitHubSecrets(p.Repo)
+	if err != nil {
+		fmt.Printf("Could not fetch secrets: %v\n\n", err)
+	} else {
+		fmt.Println("── Secrets ──────────────────────")
+		if len(secrets) == 0 {
+			fmt.Println("  (none)")
+		} else {
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+			for _, s := range secrets {
+				updated := s.UpdatedAt
+				if len(updated) >= 10 {
+					updated = updated[:10]
+				}
+				fmt.Fprintf(w, "  %s\t%s\n", s.Name, updated)
+			}
+			w.Flush()
+		}
+		fmt.Println()
+	}
+
+	// Workflow runs
+	runs, err := project.ListWorkflowRuns(p.Repo, 10)
+	if err != nil {
+		fmt.Printf("Could not fetch workflow runs: %v\n", err)
+	} else {
+		fmt.Println("── Recent Runs ──────────────────")
+		if len(runs) == 0 {
+			fmt.Println("  (none)")
+		} else {
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+			for _, r := range runs {
+				icon := "◎"
+				if r.Status == "completed" {
+					if r.Conclusion == "success" {
+						icon = "✓"
+					} else {
+						icon = "✗"
+					}
+				}
+				created := r.CreatedAt
+				if len(created) >= 10 {
+					created = created[:10]
+				}
+				fmt.Fprintf(w, "  %s %s\t%s\t%s\t%s\n", icon, r.DisplayTitle, r.HeadBranch, r.Event, created)
+			}
+			w.Flush()
+		}
+	}
+
 	return nil
 }
 
