@@ -127,6 +127,15 @@ func Setup(params SetupParams) error {
 		subName = strings.TrimSuffix(params.Domain, "."+rootDomain)
 	}
 
+	// Remove existing A/CNAME records for the domain before creating new ones.
+	if existing, err := provider.ListRecords(rootDomain); err == nil {
+		for _, r := range existing {
+			if r.Name == params.Domain && (r.Type == "A" || r.Type == "CNAME") {
+				provider.DeleteRecord(rootDomain, r.ID)
+			}
+		}
+	}
+
 	_, err = provider.CreateRecord(rootDomain, subName, "A", server.IP, "600")
 	if err != nil {
 		return fmt.Errorf("creating A record: %w", err)
