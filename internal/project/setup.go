@@ -145,7 +145,7 @@ func Setup(params SetupParams) error {
 	if dockerHubCI == "" {
 		dockerHubCI = dockerHubPassword
 	}
-	if err := SetEnvironmentSecrets(params.Repo, prefix, deployUser, deployPath, sshResult.DeployPublicKey, server.IP, dockerHubUsername, dockerHubCI); err != nil {
+	if err := SetEnvironmentSecrets(params.Repo, prefix, deployUser, deployPath, sshResult.DeployPublicKey, server.IP, dockerHubUsername, dockerHubCI, params.Port); err != nil {
 		return fmt.Errorf("setting GitHub secrets: %w", err)
 	}
 

@@ -44,6 +44,7 @@ jobs:
             docker pull {{ "{{" }} env.IMAGE_NAME {{ "}}" }}:dev-{{ "{{" }} github.sha {{ "}}" }}
             docker compose down || true
             export IMAGE_TAG=dev-{{ "{{" }} github.sha {{ "}}" }}
+            export PORT={{ "{{" }} secrets.DEV_PORT {{ "}}" }}
             docker compose up -d
 `))
 
@@ -93,6 +94,7 @@ jobs:
             docker pull {{ "{{" }} env.IMAGE_NAME {{ "}}" }}:{{ "{{" }} steps.version.outputs.tag {{ "}}" }}
             docker compose down || true
             export IMAGE_TAG={{ "{{" }} steps.version.outputs.tag {{ "}}" }}
+            export PORT={{ "{{" }} secrets.PROD_PORT {{ "}}" }}
             docker compose up -d
 `))
 
