@@ -7,6 +7,7 @@ import (
 	"github.com/dukerupert/arnor/internal/hetzner"
 	"github.com/dukerupert/arnor/internal/project"
 	"github.com/dukerupert/arnor/tui"
+	"github.com/dukerupert/arnor/tui/credentials"
 	"github.com/dukerupert/arnor/tui/deploy"
 	"github.com/dukerupert/arnor/tui/dockerps"
 	"github.com/dukerupert/arnor/tui/menu"
@@ -67,6 +68,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		tui.ScreenDeploy:         deploy.New(cfg.Projects, store),
 		tui.ScreenProjectInspect: projectinspect.New(cfg.Projects),
 		tui.ScreenDockerPS:       dockerps.New(servers, store),
+		tui.ScreenCredentials:    credentials.New(store),
 	}
 
 	factories := map[tui.Screen]tui.ScreenFactory{
@@ -90,6 +92,9 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		},
 		tui.ScreenDockerPS: func() tea.Model {
 			return dockerps.New(servers, store)
+		},
+		tui.ScreenCredentials: func() tea.Model {
+			return credentials.New(store)
 		},
 	}
 

@@ -20,6 +20,7 @@ var items = []menuItem{
 	{label: "Create", screen: tui.ScreenProjectCreate, heading: "Projects"},
 	{label: "Deploy", screen: tui.ScreenDeploy},
 	{label: "Inspect", screen: tui.ScreenProjectInspect},
+	{label: "Credentials", screen: tui.ScreenCredentials, heading: "Config"},
 }
 
 // Model is the main menu screen.

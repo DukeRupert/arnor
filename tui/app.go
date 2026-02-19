@@ -17,6 +17,7 @@ const (
 	ScreenProjectInspect
 	ScreenDockerPS
 	ScreenSetup
+	ScreenCredentials
 )
 
 // SwitchScreenMsg tells the app to switch to a different screen.
