@@ -5,7 +5,6 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/arnor/internal/dns"
 	"github.com/spf13/cobra"
 )
@@ -52,11 +51,11 @@ func init() {
 }
 
 func getProvider(domain string) (dns.Provider, error) {
-	cfg, err := config.Load()
+	cfg, err := store.LoadConfig()
 	if err != nil {
 		return nil, err
 	}
-	return dns.ProviderForDomain(domain, cfg)
+	return dns.ProviderForDomain(domain, cfg, store)
 }
 
 func runDNSList(cmd *cobra.Command, args []string) error {

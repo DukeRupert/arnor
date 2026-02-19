@@ -3,12 +3,12 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
-	"github.com/joho/godotenv"
+	"github.com/dukerupert/arnor/internal/config"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
+
+var store config.Store
 
 var rootCmd = &cobra.Command{
 	Use:   "arnor",
@@ -16,6 +16,11 @@ var rootCmd = &cobra.Command{
 	Long:  `Arnor manages web project infrastructure across Hetzner Cloud, Porkbun DNS, and Cloudflare DNS.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		if store != nil {
+			store.Close()
+		}
+	},
 }
 
 func Execute() {
@@ -26,22 +31,14 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initEnv, initConfig)
+	cobra.OnInitialize(initStore)
 }
 
-func initEnv() {
-	dotfilePath := filepath.Join(os.Getenv("HOME"), ".dotfiles", ".env")
-	if _, err := os.Stat(dotfilePath); err == nil {
-		_ = godotenv.Load(dotfilePath)
-	} else {
-		_ = godotenv.Load(".env")
+func initStore() {
+	s, err := config.NewSQLiteStore(config.DBPath())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not open database: %v\n", err)
+		return
 	}
-}
-
-func initConfig() {
-	cfgDir := filepath.Join(os.Getenv("HOME"), ".config", "arnor")
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(cfgDir)
-	_ = viper.ReadInConfig()
+	store = s
 }

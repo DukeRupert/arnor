@@ -2,9 +2,9 @@ package dns
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 
+	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/gwaihir/pkg/cloudflare"
 )
 
@@ -14,10 +14,10 @@ type CloudflareProvider struct {
 	zoneIDs map[string]string // domain -> zoneID cache
 }
 
-func NewCloudflareProvider() (*CloudflareProvider, error) {
-	token := os.Getenv("CLOUDFLARE_API_TOKEN")
-	if token == "" {
-		return nil, fmt.Errorf("CLOUDFLARE_API_TOKEN must be set")
+func NewCloudflareProvider(store config.Store) (*CloudflareProvider, error) {
+	token, err := store.GetCredential("cloudflare", "default", "api_token")
+	if err != nil {
+		return nil, fmt.Errorf("cloudflare api_token: %w", err)
 	}
 	return &CloudflareProvider{
 		client:  cloudflare.NewClient(token),

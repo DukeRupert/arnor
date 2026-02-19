@@ -2,8 +2,8 @@ package dns
 
 import (
 	"fmt"
-	"os"
 
+	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/shadowfax/pkg/porkbun"
 )
 
@@ -12,11 +12,14 @@ type PorkbunProvider struct {
 	client *porkbun.Client
 }
 
-func NewPorkbunProvider() (*PorkbunProvider, error) {
-	apiKey := os.Getenv("PORKBUN_API_KEY")
-	secretKey := os.Getenv("PORKBUN_SECRET_KEY")
-	if apiKey == "" || secretKey == "" {
-		return nil, fmt.Errorf("PORKBUN_API_KEY and PORKBUN_SECRET_KEY must be set")
+func NewPorkbunProvider(store config.Store) (*PorkbunProvider, error) {
+	apiKey, err := store.GetCredential("porkbun", "default", "api_key")
+	if err != nil {
+		return nil, fmt.Errorf("porkbun api_key: %w", err)
+	}
+	secretKey, err := store.GetCredential("porkbun", "default", "secret_key")
+	if err != nil {
+		return nil, fmt.Errorf("porkbun secret_key: %w", err)
 	}
 	return &PorkbunProvider{client: porkbun.NewClient(apiKey, secretKey)}, nil
 }

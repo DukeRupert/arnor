@@ -3,82 +3,40 @@ package config
 import (
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	HetznerProjects []HetznerProject `yaml:"hetzner_projects"`
-	Servers         []Server         `yaml:"servers"`
-	Projects        []Project        `yaml:"projects"`
+	HetznerProjects []HetznerProject
+	Servers         []Server
+	Projects        []Project
 }
 
 type HetznerProject struct {
-	Alias    string `yaml:"alias"`
-	TokenEnv string `yaml:"token_env"`
+	Alias string
 }
 
 type Server struct {
-	Name           string `yaml:"name"`
-	IP             string `yaml:"ip"`
-	HetznerProject string `yaml:"hetzner_project"`
-	HetznerID      int    `yaml:"hetzner_id"`
+	Name           string
+	IP             string
+	HetznerProject string
+	HetznerID      int
 }
 
 type Project struct {
-	Name         string                 `yaml:"name"`
-	Repo         string                 `yaml:"repo"`
-	Server       string                 `yaml:"server"`
-	Environments map[string]Environment `yaml:"environments"`
+	Name         string
+	Repo         string
+	Server       string
+	Environments map[string]Environment
 }
 
 type Environment struct {
-	Domain      string `yaml:"domain"`
-	DNSProvider string `yaml:"dns_provider"`
-	Branch      string `yaml:"branch"`
-	DeployPath  string `yaml:"deploy_path"`
-	DeployUser  string `yaml:"deploy_user"`
-	Port        int    `yaml:"port"`
-}
-
-func Path() string {
-	return filepath.Join(os.Getenv("HOME"), ".config", "arnor", "config.yaml")
-}
-
-func Load() (*Config, error) {
-	data, err := os.ReadFile(Path())
-	if err != nil {
-		if os.IsNotExist(err) {
-			return &Config{}, nil
-		}
-		return nil, fmt.Errorf("reading config: %w", err)
-	}
-
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing config: %w", err)
-	}
-	return &cfg, nil
-}
-
-func Save(cfg *Config) error {
-	dir := filepath.Dir(Path())
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("creating config dir: %w", err)
-	}
-
-	data, err := yaml.Marshal(cfg)
-	if err != nil {
-		return fmt.Errorf("marshaling config: %w", err)
-	}
-
-	if err := os.WriteFile(Path(), data, 0o644); err != nil {
-		return fmt.Errorf("writing config: %w", err)
-	}
-	return nil
+	Domain      string
+	DNSProvider string
+	Branch      string
+	DeployPath  string
+	DeployUser  string
+	Port        int
 }
 
 func (c *Config) FindServer(name string) *Server {

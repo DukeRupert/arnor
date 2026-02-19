@@ -74,7 +74,7 @@ func LookupContext(cfg *config.Config, domain string) *DomainContext {
 }
 
 // Check performs a full domain health check.
-func Check(cfg *config.Config, domain string) (*CheckResult, error) {
+func Check(cfg *config.Config, domain string, store config.Store) (*CheckResult, error) {
 	rootDomain, err := config.RootDomain(domain)
 	if err != nil {
 		return nil, fmt.Errorf("resolving root domain: %w", err)
@@ -89,7 +89,7 @@ func Check(cfg *config.Config, domain string) (*CheckResult, error) {
 	result.Context = LookupContext(cfg, domain)
 
 	// Resolve DNS provider
-	provider, providerErr := dns.ProviderForDomain(domain, cfg)
+	provider, providerErr := dns.ProviderForDomain(domain, cfg, store)
 	if providerErr == nil {
 		result.ProviderName = provider.Name()
 	}

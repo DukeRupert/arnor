@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -153,7 +152,7 @@ func TriggerWorkflow(repo, workflowFile, ref string) error {
 // EnsureWorkflowDispatch checks that the workflow file exists on the default
 // branch with a workflow_dispatch trigger. If the file is missing it generates
 // and pushes it; if it exists without the trigger it patches the file in place.
-func EnsureWorkflowDispatch(repo, envName, projectName string) error {
+func EnsureWorkflowDispatch(repo, envName, projectName, dockerHubUsername string) error {
 	filename := WorkflowFile(envName)
 	path := ".github/workflows/" + filename
 
@@ -162,7 +161,7 @@ func EnsureWorkflowDispatch(repo, envName, projectName string) error {
 		return fmt.Errorf("getting default branch: %w", err)
 	}
 
-	dockerImage := os.Getenv("DOCKERHUB_USERNAME") + "/" + projectName
+	dockerImage := dockerHubUsername + "/" + projectName
 
 	// Try to fetch the existing workflow file.
 	cmd := exec.Command("gh", "api",

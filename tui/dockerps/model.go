@@ -2,12 +2,12 @@ package dockerps
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/arnor/internal/hetzner"
 	"github.com/dukerupert/arnor/internal/project"
 	"github.com/dukerupert/arnor/tui"
@@ -32,6 +32,7 @@ type Model struct {
 
 	servers      []hetzner.ServerWithProject
 	serverCursor int
+	store        config.Store
 
 	selectedName string
 	selectedIP   string
@@ -46,7 +47,7 @@ type Model struct {
 }
 
 // New creates a new Docker PS model.
-func New(servers []hetzner.ServerWithProject) Model {
+func New(servers []hetzner.ServerWithProject, store config.Store) Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = tui.SpinnerStyle
@@ -54,6 +55,7 @@ func New(servers []hetzner.ServerWithProject) Model {
 	return Model{
 		phase:   phaseSelectServer,
 		servers: servers,
+		store:   store,
 		spinner: s,
 	}
 }
@@ -170,27 +172,15 @@ func (m Model) updateDisplay(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) fetchDockerPS() tea.Cmd {
 	serverIP := m.selectedIP
+	s := m.store
 	return func() tea.Msg {
-		peonKey, err := resolvePeonKey(serverIP)
+		peonKey, err := s.GetPeonKey(serverIP)
 		if err != nil {
 			return dockerPsDoneMsg{err: fmt.Errorf("peon key for %s: %w — run Server Init first", serverIP, err)}
 		}
 		containers, err := project.DockerPS(serverIP, peonKey)
 		return dockerPsDoneMsg{containers: containers, err: err}
 	}
-}
-
-func resolvePeonKey(serverIP string) (string, error) {
-	envKey := "PEON_SSH_KEY_" + strings.ReplaceAll(serverIP, ".", "_")
-	keyPath := os.Getenv(envKey)
-	if keyPath == "" {
-		return "", fmt.Errorf("env var %s is not set", envKey)
-	}
-	data, err := os.ReadFile(keyPath)
-	if err != nil {
-		return "", fmt.Errorf("reading %s: %w", keyPath, err)
-	}
-	return strings.TrimSpace(string(data)), nil
 }
 
 // renderContainers builds the scrollable content string for the viewport.

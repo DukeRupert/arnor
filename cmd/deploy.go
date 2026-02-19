@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/arnor/internal/project"
 	"github.com/spf13/cobra"
 )
@@ -26,7 +25,7 @@ func init() {
 func runDeploy(cmd *cobra.Command, args []string) error {
 	projectName := args[0]
 
-	cfg, err := config.Load()
+	cfg, err := store.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
@@ -41,8 +40,13 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("environment %q not configured for project %s", deployEnv, projectName)
 	}
 
+	dockerHubUsername, err := store.GetCredential("dockerhub", "default", "username")
+	if err != nil {
+		return fmt.Errorf("dockerhub username: %w", err)
+	}
+
 	fmt.Println("Ensuring workflow supports manual dispatch...")
-	if err := project.EnsureWorkflowDispatch(p.Repo, deployEnv, p.Name); err != nil {
+	if err := project.EnsureWorkflowDispatch(p.Repo, deployEnv, p.Name, dockerHubUsername); err != nil {
 		return fmt.Errorf("ensuring workflow dispatch: %w", err)
 	}
 

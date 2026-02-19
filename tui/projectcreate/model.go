@@ -2,13 +2,13 @@ package projectcreate
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/arnor/internal/hetzner"
 	"github.com/dukerupert/arnor/internal/project"
 	"github.com/dukerupert/arnor/tui"
@@ -54,6 +54,7 @@ type Model struct {
 	servers      []hetzner.ServerWithProject
 	serverCursor int
 	envCursor    int
+	store        config.Store
 
 	textInput textinput.Model
 	spinner   spinner.Model
@@ -86,7 +87,7 @@ type Model struct {
 }
 
 // New creates a new project create model.
-func New(repos []project.GitHubRepo, servers []hetzner.ServerWithProject) Model {
+func New(repos []project.GitHubRepo, servers []hetzner.ServerWithProject, store config.Store) Model {
 	ti := textinput.New()
 	ti.CharLimit = 128
 
@@ -95,9 +96,10 @@ func New(repos []project.GitHubRepo, servers []hetzner.ServerWithProject) Model 
 	s.Style = tui.SpinnerStyle
 
 	return Model{
-		phase:   phaseSelectRepo,
-		repos:   repos,
-		servers: servers,
+		phase:     phaseSelectRepo,
+		repos:     repos,
+		servers:   servers,
+		store:     store,
 		textInput: ti,
 		spinner:   s,
 	}
@@ -196,10 +198,10 @@ func (m Model) updateSelectServer(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.serverName = srv.Name
 			m.serverIP = srv.PublicNet.IPv4.IP
 
-			// Resolve peon key from server IP
-			peonKey, err := resolvePeonKey(m.serverIP)
+			// Resolve peon key from store
+			peonKey, err := m.store.GetPeonKey(m.serverIP)
 			if err != nil {
-				m.err = fmt.Errorf("peon key for %s: %w — run 'arnor tui' > Server Init first", m.serverIP, err)
+				m.err = fmt.Errorf("peon key for %s: %w — run Server Init first", m.serverIP, err)
 				m.phase = phaseDone
 				return m, nil
 			}
@@ -406,6 +408,7 @@ func (m Model) runSetup() tea.Cmd {
 		Domain:      m.domain,
 		Port:        m.port,
 		PeonKey:     m.peonKey,
+		Store:       m.store,
 		OnProgress: func(step, total int, message string) {
 			ch <- progressMsg{step: step, total: total, message: message}
 		},
@@ -434,20 +437,6 @@ func (m Model) scanPorts() tea.Cmd {
 		ports, err := project.GetUsedPorts(serverIP, peonKey)
 		return usedPortsMsg{ports: ports, err: err}
 	}
-}
-
-// resolvePeonKey reads the peon SSH key for a server IP from the env var / file path convention.
-func resolvePeonKey(serverIP string) (string, error) {
-	envKey := "PEON_SSH_KEY_" + strings.ReplaceAll(serverIP, ".", "_")
-	keyPath := os.Getenv(envKey)
-	if keyPath == "" {
-		return "", fmt.Errorf("env var %s is not set", envKey)
-	}
-	data, err := os.ReadFile(keyPath)
-	if err != nil {
-		return "", fmt.Errorf("reading %s: %w", keyPath, err)
-	}
-	return strings.TrimSpace(string(data)), nil
 }
 
 // View renders the current phase.

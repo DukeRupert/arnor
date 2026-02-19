@@ -9,18 +9,6 @@ A unified infrastructure management CLI for managing web projects hosted on Hetz
 - Go 1.25+
 - [gh CLI](https://cli.github.com/) (for `project create`)
 - `peon` user provisioned on target servers
-- Environment variables in `~/.dotfiles/.env`:
-
-```env
-PORKBUN_API_KEY=...
-PORKBUN_SECRET_KEY=...
-CLOUDFLARE_API_TOKEN=...
-HETZNER_API_TOKEN_PROD=...
-HETZNER_API_TOKEN_DEV=...
-PEON_SSH_KEY="-----BEGIN OPENSSH PRIVATE KEY-----
-...
------END OPENSSH PRIVATE KEY-----"
-```
 
 ### Install
 
@@ -28,28 +16,43 @@ PEON_SSH_KEY="-----BEGIN OPENSSH PRIVATE KEY-----
 go build -o arnor .
 ```
 
-### Initialize config
+### Initialize
+
+All configuration and credentials are stored in a SQLite database at `~/.config/arnor/arnor.db`. On first run, set up your Hetzner project:
 
 ```bash
 arnor config init
 ```
 
-Queries your Hetzner projects and populates `~/.config/arnor/config.yaml` with discovered servers.
+This prompts for a Hetzner API token, validates it, and auto-discovers your servers.
+
+### Add credentials
+
+```bash
+arnor config add porkbun default api_key pk1_xxx
+arnor config add porkbun default secret_key sk1_xxx
+arnor config add cloudflare default api_token cf_xxx
+arnor config add dockerhub default username myuser
+arnor config add dockerhub default password mypass
+arnor config add dockerhub default token dckr_pat_xxx  # optional PAT for CI
+```
 
 ## Usage
 
 ### Config
 
 ```bash
-arnor config init    # Auto-generate config from provider APIs
-arnor config view    # Print current config
+arnor config init              # Interactive setup: add Hetzner token, discover servers
+arnor config view              # Print current config from DB
+arnor config add <svc> <name> <key> <value>  # Set a credential
 ```
 
 ### Servers
 
 ```bash
-arnor server list          # List all servers across Hetzner projects
-arnor server view my-vps   # Show details for a specific server
+arnor server list              # List all servers across Hetzner projects
+arnor server view my-vps       # Show details for a specific server
+arnor server init --host 1.2.3.4  # Bootstrap peon deploy user on a VPS
 ```
 
 ### DNS
@@ -63,28 +66,29 @@ arnor dns create --domain example.com --name www --type CNAME --content example.
 arnor dns delete --domain example.com --id 12345
 ```
 
-### SSH Keys
-
-```bash
-arnor ssh list                                           # List keys across all projects
-arnor ssh add --name my-key --key ~/.ssh/id_ed25519.pub --project prod
-```
-
 ### Projects
 
 ```bash
-arnor project list          # List all configured projects
-arnor project view myclient # Show project details with environments
-arnor project create        # Interactive wizard for full project setup
+arnor project list             # List all configured projects
+arnor project view myclient    # Show project details with environments
+arnor project create           # Interactive wizard for full project setup
+arnor project inspect myclient # Show GitHub secrets and workflow runs
 ```
 
-### Containers
+### Deploy
 
 ```bash
-arnor tui  # Navigate to "Containers" to view running Docker containers on any VPS
+arnor deploy myclient --env dev   # Trigger GitHub Actions deploy
+arnor deploy myclient --env prod
 ```
 
-Connects via SSH as `peon` and displays all running containers with name, image, status, and port bindings in a scrollable card view.
+### TUI
+
+```bash
+arnor tui
+```
+
+Interactive terminal UI with screens for server init, project creation, deploy, project inspect, and Docker container viewing. On first run with an empty database, a setup wizard appears to configure your first Hetzner project.
 
 ### Project Create Workflow
 
@@ -92,9 +96,10 @@ Connects via SSH as `peon` and displays all running containers with name, image,
 
 1. Looks up the server IP from Hetzner
 2. Detects the DNS provider from nameservers
-3. SSHs into the VPS to create a deploy user, deploy path, and SSH keypair
-4. Writes a Caddy reverse proxy config and reloads Caddy
-5. Creates DNS A and www CNAME records
-6. Sets GitHub Actions secrets (namespaced per environment)
-7. Generates GitHub Actions workflow files in `.github/workflows/`
-8. Saves the project to config
+3. Creates a DockerHub repository
+4. SSHs into the VPS to create a deploy user, deploy path, and SSH keypair
+5. Writes a Caddy reverse proxy config and reloads Caddy
+6. Creates DNS A and www CNAME records
+7. Sets GitHub Actions secrets (namespaced per environment)
+8. Generates GitHub Actions workflow files in `.github/workflows/`
+9. Saves the project to the database

@@ -31,6 +31,7 @@ type Model struct {
 
 	projects []config.Project
 	cursor   int
+	store    config.Store
 
 	selectedProject config.Project
 	envNames        []string
@@ -42,7 +43,7 @@ type Model struct {
 }
 
 // New creates a new deploy model.
-func New(projects []config.Project) Model {
+func New(projects []config.Project, store config.Store) Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = tui.SpinnerStyle
@@ -50,6 +51,7 @@ func New(projects []config.Project) Model {
 	return Model{
 		phase:    phaseSelectProject,
 		projects: projects,
+		store:    store,
 		spinner:  s,
 	}
 }
@@ -192,12 +194,17 @@ func (m Model) triggerDeploy() tea.Cmd {
 	env := m.selectedProject.Environments[envName]
 	workflowFile := project.WorkflowFile(envName)
 	ref := project.DeployRef(env)
+	s := m.store
 
 	return func() tea.Msg {
-		if err := project.EnsureWorkflowDispatch(repo, envName, projectName); err != nil {
+		dockerHubUsername, err := s.GetCredential("dockerhub", "default", "username")
+		if err != nil {
+			return triggerDoneMsg{err: fmt.Errorf("dockerhub username: %w", err)}
+		}
+		if err := project.EnsureWorkflowDispatch(repo, envName, projectName, dockerHubUsername); err != nil {
 			return triggerDoneMsg{err: err}
 		}
-		err := project.TriggerWorkflow(repo, workflowFile, ref)
+		err = project.TriggerWorkflow(repo, workflowFile, ref)
 		return triggerDoneMsg{err: err}
 	}
 }

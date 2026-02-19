@@ -23,14 +23,13 @@ type Provider interface {
 	Name() string
 }
 
-// NewProvider creates a DNS provider by name. Credentials are read from
-// environment variables that should already be loaded via godotenv.
-func NewProvider(providerName string) (Provider, error) {
+// NewProvider creates a DNS provider by name. Credentials are resolved from the Store.
+func NewProvider(providerName string, store config.Store) (Provider, error) {
 	switch providerName {
 	case "porkbun":
-		return NewPorkbunProvider()
+		return NewPorkbunProvider(store)
 	case "cloudflare":
-		return NewCloudflareProvider()
+		return NewCloudflareProvider(store)
 	default:
 		return nil, fmt.Errorf("unknown DNS provider: %s", providerName)
 	}
@@ -38,13 +37,13 @@ func NewProvider(providerName string) (Provider, error) {
 
 // ProviderForDomain determines the DNS provider for a domain. It checks the
 // config first, then falls back to NS-based detection.
-func ProviderForDomain(domain string, cfg *config.Config) (Provider, error) {
+func ProviderForDomain(domain string, cfg *config.Config, store config.Store) (Provider, error) {
 	// Check config for known projects with this domain
 	if cfg != nil {
 		for _, p := range cfg.Projects {
 			for _, env := range p.Environments {
 				if env.Domain == domain && env.DNSProvider != "" {
-					return NewProvider(env.DNSProvider)
+					return NewProvider(env.DNSProvider, store)
 				}
 			}
 		}
@@ -55,5 +54,5 @@ func ProviderForDomain(domain string, cfg *config.Config) (Provider, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewProvider(providerName)
+	return NewProvider(providerName, store)
 }

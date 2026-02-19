@@ -2,7 +2,6 @@ package hetzner
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/dukerupert/arnor/internal/config"
 	fhetzner "github.com/dukerupert/fornost/pkg/hetzner"
@@ -26,13 +25,13 @@ type Manager struct {
 }
 
 // NewManager creates a Manager from config, resolving each project's token
-// from the environment variable specified in token_env.
-func NewManager(projects []config.HetznerProject) (*Manager, error) {
+// from the Store.
+func NewManager(projects []config.HetznerProject, store config.Store) (*Manager, error) {
 	m := &Manager{clients: make(map[string]*fhetzner.Client)}
 	for _, p := range projects {
-		token := os.Getenv(p.TokenEnv)
-		if token == "" {
-			return nil, fmt.Errorf("env var %s (for Hetzner project %q) is not set", p.TokenEnv, p.Alias)
+		token, err := store.GetCredential("hetzner", p.Alias, "api_token")
+		if err != nil {
+			return nil, fmt.Errorf("credential for Hetzner project %q: %w", p.Alias, err)
 		}
 		m.clients[p.Alias] = fhetzner.NewClient(token)
 	}

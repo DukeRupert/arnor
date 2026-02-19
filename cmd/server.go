@@ -5,7 +5,6 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/arnor/internal/hetzner"
 	"github.com/dukerupert/arnor/internal/peon"
 	"github.com/spf13/cobra"
@@ -49,14 +48,14 @@ func init() {
 }
 
 func newHetznerManager() (*hetzner.Manager, error) {
-	cfg, err := config.Load()
+	cfg, err := store.LoadConfig()
 	if err != nil {
 		return nil, err
 	}
 	if len(cfg.HetznerProjects) == 0 {
 		return nil, fmt.Errorf("no Hetzner projects configured — run 'arnor config init' first")
 	}
-	return hetzner.NewManager(cfg.HetznerProjects)
+	return hetzner.NewManager(cfg.HetznerProjects, store)
 }
 
 func runServerList(cmd *cobra.Command, args []string) error {
@@ -143,12 +142,11 @@ func runServerInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	result, err := peon.SavePeonKey(host, key)
+	result, err := peon.SavePeonKey(host, key, store)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("Peon private key saved to %s\n", result.KeyPath)
-	fmt.Printf("%s=%s written to %s\n", result.EnvKey, result.KeyPath, result.EnvPath)
 
 	return nil
 }

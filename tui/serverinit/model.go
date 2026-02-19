@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/arnor/internal/hetzner"
 	"github.com/dukerupert/arnor/internal/peon"
 	"github.com/dukerupert/arnor/tui"
@@ -44,6 +45,7 @@ type Model struct {
 
 	servers []hetzner.ServerWithProject
 	cursor  int
+	store   config.Store
 
 	userInput       textinput.Model
 	sudoInput       textinput.Model
@@ -69,7 +71,7 @@ type passphraseResp struct {
 }
 
 // New creates a new server init model.
-func New(servers []hetzner.ServerWithProject) Model {
+func New(servers []hetzner.ServerWithProject, store config.Store) Model {
 	ui := textinput.New()
 	ui.Placeholder = "root"
 	ui.SetValue("root")
@@ -92,6 +94,7 @@ func New(servers []hetzner.ServerWithProject) Model {
 	return Model{
 		phase:           phaseSelectServer,
 		servers:         servers,
+		store:           store,
 		userInput:       ui,
 		sudoInput:       si,
 		passphraseInput: pi,
@@ -319,12 +322,13 @@ func (m Model) waitForPassphraseRequest() tea.Cmd {
 	}
 }
 
-// saveKey saves the peon key to disk.
+// saveKey saves the peon key to disk and DB.
 func (m Model) saveKey() tea.Cmd {
 	host := m.host
 	key := m.key
+	s := m.store
 	return func() tea.Msg {
-		result, err := peon.SavePeonKey(host, key)
+		result, err := peon.SavePeonKey(host, key, s)
 		return saveDoneMsg{result: result, err: err}
 	}
 }
@@ -400,8 +404,7 @@ func (m Model) View() string {
 			b.WriteString(tui.SuccessStyle.Render("Success!"))
 			b.WriteString("\n\n")
 			b.WriteString(renderField("Key saved", m.result.KeyPath))
-			b.WriteString(renderField("Env var", m.result.EnvKey))
-			b.WriteString(renderField("Env file", m.result.EnvPath))
+			b.WriteString(renderField("Stored in", "database"))
 		}
 		b.WriteString(tui.HelpStyle.Render("\nenter: menu  q: quit"))
 	}

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/arnor/internal/domain"
 	"github.com/spf13/cobra"
 )
@@ -34,12 +33,12 @@ func runDomainCheck(cmd *cobra.Command, args []string) error {
 	domainName := args[0]
 	allRecords, _ := cmd.Flags().GetBool("all-records")
 
-	cfg, err := config.Load()
+	cfg, err := store.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	result, err := domain.Check(cfg, domainName)
+	result, err := domain.Check(cfg, domainName, store)
 	if err != nil {
 		return err
 	}

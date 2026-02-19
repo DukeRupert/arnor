@@ -8,7 +8,6 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/arnor/internal/hetzner"
 	"github.com/dukerupert/arnor/internal/project"
 	"github.com/spf13/cobra"
@@ -54,7 +53,7 @@ func init() {
 }
 
 func runProjectList(cmd *cobra.Command, args []string) error {
-	cfg, err := config.Load()
+	cfg, err := store.LoadConfig()
 	if err != nil {
 		return err
 	}
@@ -82,7 +81,7 @@ func runProjectList(cmd *cobra.Command, args []string) error {
 }
 
 func runProjectView(cmd *cobra.Command, args []string) error {
-	cfg, err := config.Load()
+	cfg, err := store.LoadConfig()
 	if err != nil {
 		return err
 	}
@@ -109,7 +108,7 @@ func runProjectView(cmd *cobra.Command, args []string) error {
 }
 
 func runProjectInspect(cmd *cobra.Command, args []string) error {
-	cfg, err := config.Load()
+	cfg, err := store.LoadConfig()
 	if err != nil {
 		return err
 	}
@@ -202,13 +201,13 @@ func runProjectCreate(cmd *cobra.Command, args []string) error {
 
 	// Resolve server IP and peon key for port scanning
 	var serverIP, peonKey string
-	cfg, err := config.Load()
+	cfg, err := store.LoadConfig()
 	if err == nil {
 		srv := cfg.FindServer(serverName)
 		if srv != nil {
 			serverIP = srv.IP
 		} else {
-			mgr, mgrErr := hetzner.NewManager(cfg.HetznerProjects)
+			mgr, mgrErr := hetzner.NewManager(cfg.HetznerProjects, store)
 			if mgrErr == nil {
 				if s, sErr := mgr.GetServer(serverName); sErr == nil {
 					serverIP = s.PublicNet.IPv4.IP
@@ -217,12 +216,8 @@ func runProjectCreate(cmd *cobra.Command, args []string) error {
 		}
 	}
 	if serverIP != "" {
-		envKey := "PEON_SSH_KEY_" + strings.ReplaceAll(serverIP, ".", "_")
-		keyPath := os.Getenv(envKey)
-		if keyPath != "" {
-			if data, readErr := os.ReadFile(keyPath); readErr == nil {
-				peonKey = strings.TrimSpace(string(data))
-			}
+		if key, err := store.GetPeonKey(serverIP); err == nil {
+			peonKey = key
 		}
 	}
 
@@ -274,6 +269,7 @@ func runProjectCreate(cmd *cobra.Command, args []string) error {
 			Domain:      domain,
 			Port:        port,
 			PeonKey:     peonKey,
+			Store:       store,
 			OnProgress: func(step, total int, message string) {
 				fmt.Printf("Step %d/%d: %s\n", step, total, message)
 			},

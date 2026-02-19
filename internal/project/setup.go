@@ -3,7 +3,6 @@ package project
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -25,8 +24,9 @@ type SetupParams struct {
 	ServerName  string
 	EnvName     string // "dev" or "prod"
 	Domain      string
-	Port    int
-	PeonKey string // PEM-encoded peon SSH key; falls back to PEON_SSH_KEY env var
+	Port        int
+	PeonKey     string // PEM-encoded peon SSH key
+	Store       config.Store
 	OnProgress  ProgressFunc
 }
 
@@ -39,7 +39,7 @@ func Setup(params SetupParams) error {
 		}
 	}
 
-	cfg, err := config.Load()
+	cfg, err := params.Store.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
@@ -48,7 +48,7 @@ func Setup(params SetupParams) error {
 	report(1, "Looking up server...")
 	server := cfg.FindServer(params.ServerName)
 	if server == nil {
-		mgr, err := hetzner.NewManager(cfg.HetznerProjects)
+		mgr, err := hetzner.NewManager(cfg.HetznerProjects, params.Store)
 		if err != nil {
 			return fmt.Errorf("creating Hetzner manager: %w", err)
 		}
@@ -66,19 +66,22 @@ func Setup(params SetupParams) error {
 
 	// Step 2: Detect DNS provider
 	report(2, "Detecting DNS provider...")
-	provider, err := dns.ProviderForDomain(params.Domain, cfg)
+	provider, err := dns.ProviderForDomain(params.Domain, cfg, params.Store)
 	if err != nil {
 		return fmt.Errorf("detecting DNS provider for %s: %w", params.Domain, err)
 	}
 
 	// Step 3: Create DockerHub repo
 	report(3, "Creating DockerHub repo...")
-	dockerHubUsername := os.Getenv("DOCKERHUB_USERNAME")
-	dockerHubPassword := os.Getenv("DOCKERHUB_PASSWORD")
-	dockerHubToken := os.Getenv("DOCKERHUB_TOKEN")
-	if dockerHubUsername == "" || dockerHubPassword == "" {
-		return fmt.Errorf("DOCKERHUB_USERNAME and DOCKERHUB_PASSWORD env vars must be set")
+	dockerHubUsername, err := params.Store.GetCredential("dockerhub", "default", "username")
+	if err != nil {
+		return fmt.Errorf("dockerhub username: %w", err)
 	}
+	dockerHubPassword, err := params.Store.GetCredential("dockerhub", "default", "password")
+	if err != nil {
+		return fmt.Errorf("dockerhub password: %w", err)
+	}
+	dockerHubToken, _ := params.Store.GetCredential("dockerhub", "default", "token")
 	dockerImage := dockerHubUsername + "/" + params.ProjectName
 	dhClient := dockerhub.NewClient(dockerHubUsername, dockerHubPassword)
 	if err := dhClient.EnsureRepo(dockerHubUsername, params.ProjectName); err != nil {
@@ -92,10 +95,10 @@ func Setup(params SetupParams) error {
 
 	peonKey := params.PeonKey
 	if peonKey == "" {
-		peonKey = os.Getenv("PEON_SSH_KEY")
-	}
-	if peonKey == "" {
-		return fmt.Errorf("peon SSH key not provided and PEON_SSH_KEY env var is not set")
+		peonKey, err = params.Store.GetPeonKey(server.IP)
+		if err != nil {
+			return fmt.Errorf("peon key for %s: %w", server.IP, err)
+		}
 	}
 
 	sshResult, err := RunSetup(server.IP, deployUser, deployPath, peonKey)
@@ -114,7 +117,7 @@ func Setup(params SetupParams) error {
 	report(6, "Creating DNS records...")
 
 	// Split domain into root domain and subdomain name for the DNS API.
-	// e.g. "foo.angmar.dev" → root "angmar.dev", subName "foo"
+	// e.g. "foo.angmar.dev" -> root "angmar.dev", subName "foo"
 	rootDomain, err := config.RootDomain(params.Domain)
 	if err != nil {
 		return fmt.Errorf("resolving root domain for %s: %w", params.Domain, err)
@@ -187,7 +190,7 @@ func Setup(params SetupParams) error {
 		})
 	}
 
-	if err := config.Save(cfg); err != nil {
+	if err := params.Store.SaveConfig(cfg); err != nil {
 		return fmt.Errorf("saving config: %w", err)
 	}
 
