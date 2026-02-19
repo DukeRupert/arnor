@@ -26,6 +26,14 @@ github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6N
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/dukerupert/annuminas v1.0.0 h1:olHiWLfz1/eKZGoSwY5IomJaQz4Y2cgGk//6TIMai9s=
+github.com/dukerupert/annuminas v1.0.0/go.mod h1:u+PcThWc9XILMaWt7i32D16B80t+o3DaOpH0cIYHfIk=
+github.com/dukerupert/fornost v0.0.0-20260218141258-4c6145d56c0f h1:dAZbH7ZTrEMS8Y1ARWUFYFYQv8Etm07IDfr2tbj9OMk=
+github.com/dukerupert/fornost v0.0.0-20260218141258-4c6145d56c0f/go.mod h1:69NSiU/TpvFEsstm7pOQ1Keg8keUiOy+Bv8O0RLQ+VU=
+github.com/dukerupert/gwaihir v0.0.0-20260218141257-16ac396c6957 h1:mbDmJ3ehauFps4BaOVYl9RVjSXxp6yHCtnFYteP9rJc=
+github.com/dukerupert/gwaihir v0.0.0-20260218141257-16ac396c6957/go.mod h1:OfYbaDhyCcUfkwKw+qhq0dOjSG9GrGLpgOHzlHXhfmE=
+github.com/dukerupert/shadowfax v1.0.0 h1:Qwd6IrTlzZeiV7ss6F709JmSfSb9kF8asU3NjCQCGdI=
+github.com/dukerupert/shadowfax v1.0.0/go.mod h1:siWe5+gPHmbdlIVDYtrX5yI8CilvW2IcXvgeRyO+hdQ=
 github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f h1:Y/CXytFA4m6baUTXGLOoWe4PQhGxaX0KpnayAqC48p4=
 github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f/go.mod h1:vw97MGsxSvLiUE2X8qFplwetxpGLQrlU1Q9AUEIzCaM=
 github.com/frankban/quicktest v1.14.6 h1:7Xjx+VpznH+oBnejlPUj8oUpdxnVs4f8XU8WnHkI4W8=
