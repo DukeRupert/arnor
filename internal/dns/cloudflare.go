@@ -10,18 +10,24 @@ import (
 
 // CloudflareProvider adapts the gwaihir Cloudflare client to the Provider interface.
 type CloudflareProvider struct {
-	client  *cloudflare.Client
-	zoneIDs map[string]string // domain -> zoneID cache
+	client    *cloudflare.Client
+	accountID string
+	zoneIDs   map[string]string // domain -> zoneID cache
 }
 
 func NewCloudflareProvider(store config.Store) (*CloudflareProvider, error) {
+	accountID, err := store.GetCredential("cloudflare", "default", "account_id")
+	if err != nil {
+		return nil, fmt.Errorf("cloudflare account_id: %w", err)
+	}
 	token, err := store.GetCredential("cloudflare", "default", "api_token")
 	if err != nil {
 		return nil, fmt.Errorf("cloudflare api_token: %w", err)
 	}
 	return &CloudflareProvider{
-		client:  cloudflare.NewClient(token),
-		zoneIDs: make(map[string]string),
+		client:    cloudflare.NewClient(token),
+		accountID: accountID,
+		zoneIDs:   make(map[string]string),
 	}, nil
 }
 
