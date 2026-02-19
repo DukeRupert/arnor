@@ -7,7 +7,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/dukerupert/annuminas v1.0.0
-	github.com/dukerupert/fornost v0.0.0-20260218141258-4c6145d56c0f
+	github.com/dukerupert/fornost v0.0.0-20260219143818-5d4c05963f5c
 	github.com/dukerupert/gwaihir v0.0.0-20260218141257-16ac396c6957
 	github.com/dukerupert/shadowfax v1.0.1-0.20260219011413-c14179ebe8d3
 	github.com/spf13/cobra v1.10.2

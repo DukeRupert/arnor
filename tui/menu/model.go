@@ -9,16 +9,17 @@ import (
 )
 
 type menuItem struct {
-	label  string
-	screen tui.Screen
+	label   string
+	screen  tui.Screen
+	heading string // non-empty = section header rendered above this item
 }
 
 var items = []menuItem{
-	{"Server Init", tui.ScreenServerInit},
-	{"Project Create", tui.ScreenProjectCreate},
-	{"Deploy", tui.ScreenDeploy},
-	{"Project Inspect", tui.ScreenProjectInspect},
-	{"Containers", tui.ScreenDockerPS},
+	{label: "Init", screen: tui.ScreenServerInit, heading: "Servers"},
+	{label: "Containers", screen: tui.ScreenDockerPS},
+	{label: "Create", screen: tui.ScreenProjectCreate, heading: "Projects"},
+	{label: "Deploy", screen: tui.ScreenDeploy},
+	{label: "Inspect", screen: tui.ScreenProjectInspect},
 }
 
 // Model is the main menu screen.
@@ -64,9 +65,15 @@ func (m Model) View() string {
 	b.WriteString("\n")
 
 	for i, item := range items {
-		line := fmt.Sprintf("  %s", item.label)
+		if item.heading != "" {
+			if i > 0 {
+				b.WriteString("\n")
+			}
+			b.WriteString(tui.LabelStyle.Render(item.heading) + "\n")
+		}
+		line := fmt.Sprintf("    %s", item.label)
 		if i == m.cursor {
-			line = tui.CursorStyle.Render("> " + item.label)
+			line = tui.CursorStyle.Render("  > " + item.label)
 		}
 		b.WriteString(line + "\n")
 	}
