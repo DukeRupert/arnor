@@ -224,6 +224,52 @@ func WorkflowFile(envName string) string {
 	return "deploy-" + envName + ".yml"
 }
 
+// managedWorkflows is the set of workflow filenames that arnor manages.
+var managedWorkflows = map[string]bool{
+	"deploy-dev.yml":  true,
+	"deploy-prod.yml": true,
+}
+
+// DeleteStaleWorkflows removes any workflow files from the repo that are not
+// managed by arnor. This prevents old hand-written workflows (e.g. deploy.yml)
+// from conflicting with the generated deploy-dev.yml / deploy-prod.yml.
+func DeleteStaleWorkflows(repo, branch string) error {
+	cmd := exec.Command("gh", "api",
+		fmt.Sprintf("repos/%s/contents/.github/workflows?ref=%s", repo, branch),
+		"--jq", ".[].name")
+	out, err := cmd.Output()
+	if err != nil {
+		// No workflows directory — nothing to clean up.
+		return nil
+	}
+
+	for _, name := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if name == "" || managedWorkflows[name] {
+			continue
+		}
+		path := ".github/workflows/" + name
+		// Get the file SHA required for deletion.
+		shaCmd := exec.Command("gh", "api",
+			fmt.Sprintf("repos/%s/contents/%s?ref=%s", repo, path, branch),
+			"--jq", ".sha")
+		shaOut, err := shaCmd.Output()
+		if err != nil {
+			continue
+		}
+		sha := strings.TrimSpace(string(shaOut))
+
+		delCmd := exec.Command("gh", "api", "-X", "DELETE",
+			fmt.Sprintf("repos/%s/contents/%s", repo, path),
+			"-f", "message=Remove stale workflow "+name,
+			"-f", "sha="+sha,
+			"-f", "branch="+branch)
+		if delOut, err := delCmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("deleting stale workflow %s: %w\n%s", name, err, strings.TrimSpace(string(delOut)))
+		}
+	}
+	return nil
+}
+
 // DeployRef returns the git ref to deploy for a given environment.
 func DeployRef(env config.Environment) string {
 	return env.Branch

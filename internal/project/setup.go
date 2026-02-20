@@ -361,6 +361,11 @@ func generateWorkflowFile(repo, envName, dockerImage string) error {
 		return fmt.Errorf("detecting default branch: %w", err)
 	}
 
+	// Remove any non-arnor workflow files before pushing ours.
+	if err := DeleteStaleWorkflows(repo, branch); err != nil {
+		return fmt.Errorf("cleaning stale workflows: %w", err)
+	}
+
 	path := ".github/workflows/" + filename
 	commitMsg := fmt.Sprintf("Add %s deploy workflow", envName)
 
