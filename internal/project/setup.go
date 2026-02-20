@@ -268,8 +268,16 @@ func writeCaddyConfig(serverIP, peonKeyPEM, domain, caddyConfig string) error {
 	}
 	session.Close()
 
+	// Validate config before reloading so we get a useful error message
+	validateOut, err := runSSHCommandOutput(client, "sudo caddy validate --config /etc/caddy/Caddyfile 2>&1")
+	if err != nil {
+		return fmt.Errorf("caddy config validation failed: %s", strings.TrimSpace(validateOut))
+	}
+
 	if err := runSSHCommand(client, "sudo systemctl reload caddy"); err != nil {
-		return fmt.Errorf("reloading caddy: %w", err)
+		// Grab journal output for context
+		journalOut, _ := runSSHCommandOutput(client, "sudo journalctl -u caddy -n 20 --no-pager 2>&1")
+		return fmt.Errorf("reloading caddy: %w\njournal output:\n%s", err, strings.TrimSpace(journalOut))
 	}
 	return nil
 }
