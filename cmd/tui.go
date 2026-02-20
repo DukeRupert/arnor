@@ -62,7 +62,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	}
 
 	screens := map[tui.Screen]tea.Model{
-		tui.ScreenMenu:           menu.New(),
+		tui.ScreenMenu:           menu.New(Version),
 		tui.ScreenServerInit:     serverinit.New(servers, store),
 		tui.ScreenProjectCreate:  projectcreate.New(repos, servers, store),
 		tui.ScreenDeploy:         deploy.New(cfg.Projects, store),

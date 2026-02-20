@@ -25,12 +25,13 @@ var items = []menuItem{
 
 // Model is the main menu screen.
 type Model struct {
-	cursor int
+	version string
+	cursor  int
 }
 
 // New creates a new menu model.
-func New() Model {
-	return Model{}
+func New(version string) Model {
+	return Model{version: version}
 }
 
 func (m Model) Init() tea.Cmd {
@@ -62,7 +63,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) View() string {
 	var b strings.Builder
 
-	b.WriteString(tui.TitleStyle.Render("arnor"))
+	b.WriteString(tui.TitleStyle.Render("arnor") + " " + tui.HelpStyle.Render(m.version))
 	b.WriteString("\n")
 
 	for i, item := range items {

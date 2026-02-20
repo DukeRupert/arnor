@@ -8,7 +8,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var store config.Store
+var (
+	Version = "dev"
+	store   config.Store
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "arnor",
