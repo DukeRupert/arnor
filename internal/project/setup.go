@@ -133,10 +133,10 @@ func Setup(params SetupParams) error {
 		subName = strings.TrimSuffix(params.Domain, "."+rootDomain)
 	}
 
-	// Remove existing A/CNAME records for the domain before creating new ones.
+	// Remove existing A/CNAME/ALIAS records for the domain before creating new ones.
 	if existing, err := provider.ListRecords(rootDomain); err == nil {
 		for _, r := range existing {
-			if r.Name == params.Domain && (r.Type == "A" || r.Type == "CNAME") {
+			if r.Name == params.Domain && (r.Type == "A" || r.Type == "CNAME" || r.Type == "ALIAS") {
 				provider.DeleteRecord(rootDomain, r.ID)
 			}
 		}
