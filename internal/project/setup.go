@@ -338,27 +338,26 @@ func writeComposeFile(serverIP, peonKeyPEM, deployPath, deployUser, dockerImage 
 }
 
 func generateWorkflowFile(repo, envName, dockerImage string) error {
+	branch, err := DefaultBranch(repo)
+	if err != nil {
+		return fmt.Errorf("detecting default branch: %w", err)
+	}
+
 	var content string
 	var filename string
-	var err error
 
 	switch envName {
 	case "dev":
 		content, err = GenerateDevWorkflow(dockerImage)
 		filename = "deploy-dev.yml"
 	case "prod":
-		content, err = GenerateProdWorkflow(dockerImage)
+		content, err = GenerateProdWorkflow(dockerImage, branch)
 		filename = "deploy-prod.yml"
 	default:
 		return fmt.Errorf("unknown environment: %s", envName)
 	}
 	if err != nil {
 		return err
-	}
-
-	branch, err := DefaultBranch(repo)
-	if err != nil {
-		return fmt.Errorf("detecting default branch: %w", err)
 	}
 
 	// Remove any non-arnor workflow files before pushing ours.

@@ -178,7 +178,7 @@ func EnsureWorkflowDispatch(repo, envName, projectName, dockerHubUsername string
 		case "dev":
 			content, err = GenerateDevWorkflow(dockerImage)
 		case "prod":
-			content, err = GenerateProdWorkflow(dockerImage)
+			content, err = GenerateProdWorkflow(dockerImage, branch)
 		default:
 			return fmt.Errorf("unknown environment: %s", envName)
 		}
@@ -207,7 +207,7 @@ func EnsureWorkflowDispatch(repo, envName, projectName, dockerHubUsername string
 	case "dev":
 		updated, err = GenerateDevWorkflow(dockerImage)
 	case "prod":
-		updated, err = GenerateProdWorkflow(dockerImage)
+		updated, err = GenerateProdWorkflow(dockerImage, branch)
 	default:
 		return fmt.Errorf("unknown environment: %s", envName)
 	}

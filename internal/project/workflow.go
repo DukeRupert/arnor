@@ -55,7 +55,7 @@ on:
   workflow_dispatch:
   push:
     tags: ["v*"]
-    branches: [main]
+    branches: [{{ .Branch }}]
 
 env:
   IMAGE_NAME: {{ .DockerImage }}
@@ -107,6 +107,7 @@ jobs:
 
 type WorkflowData struct {
 	DockerImage string
+	Branch      string
 }
 
 // GenerateDevWorkflow returns the dev deploy workflow YAML.
@@ -119,9 +120,10 @@ func GenerateDevWorkflow(dockerImage string) (string, error) {
 }
 
 // GenerateProdWorkflow returns the prod deploy workflow YAML.
-func GenerateProdWorkflow(dockerImage string) (string, error) {
+// branch is the repo's default branch (e.g. "main" or "master").
+func GenerateProdWorkflow(dockerImage, branch string) (string, error) {
 	var buf bytes.Buffer
-	if err := prodWorkflowTmpl.Execute(&buf, WorkflowData{DockerImage: dockerImage}); err != nil {
+	if err := prodWorkflowTmpl.Execute(&buf, WorkflowData{DockerImage: dockerImage, Branch: branch}); err != nil {
 		return "", err
 	}
 	return buf.String(), nil
