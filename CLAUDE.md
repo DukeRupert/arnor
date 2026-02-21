@@ -50,12 +50,13 @@ Provider is auto-detected by inspecting the domain's nameservers.
 
 ### Project Structure
 
-- `cmd/` — Cobra command definitions (root, config, project, server, dns, ssh)
+- `cmd/` — Cobra command definitions (root, config, project, service, server, dns, ssh)
 - `internal/config/` — Config file read/write (`~/.config/arnor/config.yaml`)
 - `internal/dns/` — DNS provider interface + Porkbun/Cloudflare adapters
 - `internal/hetzner/` — Hetzner Cloud client adapter (wraps fornost)
 - `internal/caddy/` — Caddy reverse proxy config generation + remote installation with cloudflare DNS module
 - `internal/project/` — Project creation orchestration
+- `internal/service/` — Service deployment orchestration (Docker Compose services without CI/CD)
 - `tui/` — BubbleTea models and views (v2.0.0)
 
 ### Server Init Flow
@@ -87,6 +88,24 @@ The core workflow (`arnor project create`) replaces the old `new-project.sh`:
 8. Set GitHub Actions secrets (namespaced by environment: `DEV_*` / `PROD_*`)
 9. Generate workflow files into `.github/workflows/` (one per environment)
 10. Write project entry to config
+
+### Service Deploy Flow
+
+`arnor service deploy` provides a lighter alternative to `project create` for deploying Docker Compose services (e.g. Uptime Kuma) without GitHub integration:
+
+1. Prompt for service name, server, domain, port, path to docker-compose.yml
+2. Look up server IP from config or Hetzner API
+3. Detect DNS provider from nameservers
+4. Create `/opt/{service-name}` on the server, owned by peon
+5. Upload the local docker-compose.yml
+6. Run `docker compose up -d`
+7. Generate and deploy Caddy reverse proxy config (with validation)
+8. Create DNS A record and www CNAME
+9. Save as a Project with empty `Repo` field
+
+Services are stored as regular Projects with `Repo: ""`. They appear with `(service)` in `arnor project list` and `arnor project view`. `arnor project inspect` skips GitHub checks for services.
+
+No deploy user is created — peon runs everything directly. The flow reuses a single SSH connection for steps 4-7. Re-running for the same service is idempotent.
 
 ### Environment Conventions
 

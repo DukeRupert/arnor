@@ -75,7 +75,11 @@ func runProjectList(cmd *cobra.Command, args []string) error {
 		if env, ok := p.Environments["prod"]; ok {
 			prodDomain = env.Domain
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", p.Name, p.Repo, p.Server, devDomain, prodDomain)
+		repo := p.Repo
+		if repo == "" {
+			repo = "(service)"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", p.Name, repo, p.Server, devDomain, prodDomain)
 	}
 	return w.Flush()
 }
@@ -92,7 +96,11 @@ func runProjectView(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Name:   %s\n", p.Name)
-	fmt.Printf("Repo:   %s\n", p.Repo)
+	repo := p.Repo
+	if repo == "" {
+		repo = "(service)"
+	}
+	fmt.Printf("Repo:   %s\n", repo)
 	fmt.Printf("Server: %s\n", p.Server)
 
 	for envName, env := range p.Environments {
@@ -120,6 +128,11 @@ func runProjectInspect(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Project: %s\n", p.Name)
 	fmt.Printf("Repo:    %s\n\n", p.Repo)
+
+	if p.Repo == "" {
+		fmt.Println("This is a service (no GitHub integration).")
+		return nil
+	}
 
 	// Secrets
 	secrets, err := project.ListGitHubSecrets(p.Repo)
