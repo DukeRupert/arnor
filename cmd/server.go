@@ -5,6 +5,7 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"github.com/dukerupert/arnor/internal/caddy"
 	"github.com/dukerupert/arnor/internal/hetzner"
 	"github.com/dukerupert/arnor/internal/peon"
 	"github.com/spf13/cobra"
@@ -32,8 +33,15 @@ var serverViewCmd = &cobra.Command{
 var serverInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Bootstrap the peon deploy user on a remote server",
-	Long:  "Connects to a VPS via SSH and runs the peon bootstrap script to create the peon user with sudo, Docker, and SSH keys.",
+	Long:  "Connects to a VPS via SSH and runs the peon bootstrap script to create the peon user with sudo, Docker, and SSH keys, then installs Caddy.",
 	RunE:  runServerInit,
+}
+
+var serverCaddySetupCmd = &cobra.Command{
+	Use:   "caddy-setup",
+	Short: "Install or re-install Caddy with cloudflare DNS module on a server",
+	Long:  "SSHes into an already-initialized server as peon and sets up Caddy with the caddy-dns/cloudflare module.",
+	RunE:  runServerCaddySetup,
 }
 
 func init() {
@@ -41,9 +49,13 @@ func init() {
 	serverInitCmd.Flags().String("user", "root", "SSH user to connect as")
 	serverInitCmd.MarkFlagRequired("host")
 
+	serverCaddySetupCmd.Flags().String("host", "", "Server IP or hostname (required)")
+	serverCaddySetupCmd.MarkFlagRequired("host")
+
 	serverCmd.AddCommand(serverListCmd)
 	serverCmd.AddCommand(serverViewCmd)
 	serverCmd.AddCommand(serverInitCmd)
+	serverCmd.AddCommand(serverCaddySetupCmd)
 	rootCmd.AddCommand(serverCmd)
 }
 
@@ -148,5 +160,62 @@ func runServerInit(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("Peon private key saved to %s\n", result.KeyPath)
 
+	// Install Caddy with cloudflare DNS module
+	fmt.Printf("\nSetting up Caddy on %s...\n", host)
+	cfToken := lookupCFToken()
+	if cfToken == "" {
+		fmt.Println("Warning: no Cloudflare API token found — Caddy will be installed without DNS challenge support")
+	}
+	if err := caddy.Install(caddy.InstallParams{
+		ServerIP:   host,
+		PeonKeyPEM: key,
+		CFToken:    cfToken,
+		OnProgress: func(step, total int, message string) {
+			fmt.Printf("[%d/%d] %s\n", step, total, message)
+		},
+	}); err != nil {
+		return fmt.Errorf("caddy setup: %w", err)
+	}
+	fmt.Println("Caddy installed successfully")
+
 	return nil
+}
+
+func runServerCaddySetup(cmd *cobra.Command, args []string) error {
+	host, _ := cmd.Flags().GetString("host")
+
+	peonKey, err := store.GetPeonKey(host)
+	if err != nil {
+		return fmt.Errorf("no peon key found for %s — run 'arnor server init' first: %w", host, err)
+	}
+
+	cfToken := lookupCFToken()
+	if cfToken == "" {
+		fmt.Println("Warning: no Cloudflare API token found — Caddy will be installed without DNS challenge support")
+	}
+
+	fmt.Printf("Setting up Caddy on %s...\n", host)
+	if err := caddy.Install(caddy.InstallParams{
+		ServerIP:   host,
+		PeonKeyPEM: peonKey,
+		CFToken:    cfToken,
+		OnProgress: func(step, total int, message string) {
+			fmt.Printf("[%d/%d] %s\n", step, total, message)
+		},
+	}); err != nil {
+		return fmt.Errorf("caddy setup: %w", err)
+	}
+	fmt.Println("Caddy installed successfully")
+	return nil
+}
+
+// lookupCFToken returns the Cloudflare API token for Caddy, checking the
+// caddy-specific credential first, then falling back to the default.
+func lookupCFToken() string {
+	token, err := store.GetCredential("cloudflare", "caddy", "api_token")
+	if err == nil && token != "" {
+		return token
+	}
+	token, _ = store.GetCredential("cloudflare", "default", "api_token")
+	return token
 }

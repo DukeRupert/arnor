@@ -114,7 +114,7 @@ func Setup(params SetupParams) error {
 
 	// Step 6: Write Caddy config
 	report(6, "Writing Caddy config...")
-	caddyConfig := caddy.Generate(params.Domain, params.Port)
+	caddyConfig := caddy.Generate(params.Domain, params.Port, provider.Name())
 	if err := writeCaddyConfig(server.IP, peonKey, params.Domain, caddyConfig); err != nil {
 		return fmt.Errorf("writing Caddy config: %w", err)
 	}

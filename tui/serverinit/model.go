@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dukerupert/arnor/internal/caddy"
 	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/arnor/internal/hetzner"
 	"github.com/dukerupert/arnor/internal/peon"
@@ -23,6 +24,7 @@ const (
 	phaseConfirm
 	phaseRunning
 	phasePassphrase
+	phaseCaddySetup
 	phaseDone
 )
 
@@ -35,6 +37,10 @@ type runDoneMsg struct {
 type saveDoneMsg struct {
 	result *peon.SaveResult
 	err    error
+}
+
+type caddyDoneMsg struct {
+	err error
 }
 
 type passphraseRequestMsg struct{}
@@ -60,9 +66,10 @@ type Model struct {
 	passphraseWait chan struct{}       // SSH goroutine signals it needs a passphrase
 	passphraseCh   chan passphraseResp // TUI sends the passphrase back
 
-	key    string
-	result *peon.SaveResult
-	err    error
+	key      string
+	result   *peon.SaveResult
+	err      error
+	caddyErr error
 }
 
 type passphraseResp struct {
@@ -122,6 +129,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateRunning(msg)
 	case phasePassphrase:
 		return m.updatePassphrase(msg)
+	case phaseCaddySetup:
+		return m.updateCaddySetup(msg)
 	case phaseDone:
 		return m.updateDone(msg)
 	}
@@ -237,11 +246,12 @@ func (m Model) updateRunning(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case saveDoneMsg:
 		if msg.err != nil {
 			m.err = msg.err
-		} else {
-			m.result = msg.result
+			m.phase = phaseDone
+			return m, nil
 		}
-		m.phase = phaseDone
-		return m, nil
+		m.result = msg.result
+		m.phase = phaseCaddySetup
+		return m, tea.Batch(m.spinner.Tick, m.installCaddy())
 	case passphraseRequestMsg:
 		m.phase = phasePassphrase
 		m.passphraseInput.SetValue("")
@@ -275,6 +285,20 @@ func (m Model) updatePassphrase(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.passphraseInput, cmd = m.passphraseInput.Update(msg)
 	return m, cmd
+}
+
+func (m Model) updateCaddySetup(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case caddyDoneMsg:
+		m.caddyErr = msg.err
+		m.phase = phaseDone
+		return m, nil
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	}
+	return m, nil
 }
 
 func (m Model) updateDone(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -330,6 +354,26 @@ func (m Model) saveKey() tea.Cmd {
 	return func() tea.Msg {
 		result, err := peon.SavePeonKey(host, key, s)
 		return saveDoneMsg{result: result, err: err}
+	}
+}
+
+// installCaddy runs caddy.Install in a goroutine.
+func (m Model) installCaddy() tea.Cmd {
+	host := m.host
+	key := m.key
+	s := m.store
+	return func() tea.Msg {
+		// Look up CF token: prefer caddy-specific, fall back to default
+		cfToken, err := s.GetCredential("cloudflare", "caddy", "api_token")
+		if err != nil || cfToken == "" {
+			cfToken, _ = s.GetCredential("cloudflare", "default", "api_token")
+		}
+		err = caddy.Install(caddy.InstallParams{
+			ServerIP:   host,
+			PeonKeyPEM: key,
+			CFToken:    cfToken,
+		})
+		return caddyDoneMsg{err: err}
 	}
 }
 
@@ -393,6 +437,17 @@ func (m Model) View() string {
 		b.WriteString(m.passphraseInput.View())
 		b.WriteString(tui.HelpStyle.Render("\nenter: submit  esc: cancel"))
 
+	case phaseCaddySetup:
+		b.WriteString(renderField("Host", m.host))
+		b.WriteString(renderField("User", m.user))
+		b.WriteString("\n")
+		b.WriteString(tui.SuccessStyle.Render("Peon: bootstrapped"))
+		b.WriteString("\n")
+		b.WriteString(renderField("Key saved", m.result.KeyPath))
+		b.WriteString("\n")
+		b.WriteString(m.spinner.View())
+		b.WriteString(" Setting up Caddy...")
+
 	case phaseDone:
 		b.WriteString(renderField("Host", m.host))
 		b.WriteString(renderField("User", m.user))
@@ -401,10 +456,18 @@ func (m Model) View() string {
 			b.WriteString(tui.ErrorStyle.Render("Error: "))
 			b.WriteString(m.err.Error())
 		} else {
-			b.WriteString(tui.SuccessStyle.Render("Success!"))
-			b.WriteString("\n\n")
+			b.WriteString(tui.SuccessStyle.Render("Peon: bootstrapped"))
+			b.WriteString("\n")
 			b.WriteString(renderField("Key saved", m.result.KeyPath))
 			b.WriteString(renderField("Stored in", "database"))
+			b.WriteString("\n")
+			if m.caddyErr != nil {
+				b.WriteString(tui.ErrorStyle.Render("Caddy: failed"))
+				b.WriteString("\n")
+				b.WriteString(tui.ErrorStyle.Render(m.caddyErr.Error()))
+			} else {
+				b.WriteString(tui.SuccessStyle.Render("Caddy: installed"))
+			}
 		}
 		b.WriteString(tui.HelpStyle.Render("\nenter: menu  q: quit"))
 	}
