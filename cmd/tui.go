@@ -14,6 +14,7 @@ import (
 	"github.com/dukerupert/arnor/tui/projectcreate"
 	"github.com/dukerupert/arnor/tui/projectinspect"
 	"github.com/dukerupert/arnor/tui/serverinit"
+	"github.com/dukerupert/arnor/tui/servicedeploy"
 	"github.com/dukerupert/arnor/tui/setup"
 	"github.com/spf13/cobra"
 )
@@ -68,6 +69,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		tui.ScreenDeploy:         deploy.New(cfg.Projects, store),
 		tui.ScreenProjectInspect: projectinspect.New(cfg.Projects),
 		tui.ScreenDockerPS:       dockerps.New(servers, store),
+		tui.ScreenServiceDeploy:  servicedeploy.New(servers, store),
 		tui.ScreenCredentials:    credentials.New(store),
 	}
 
@@ -92,6 +94,9 @@ func runTUI(cmd *cobra.Command, args []string) error {
 		},
 		tui.ScreenDockerPS: func() tea.Model {
 			return dockerps.New(servers, store)
+		},
+		tui.ScreenServiceDeploy: func() tea.Model {
+			return servicedeploy.New(servers, store)
 		},
 		tui.ScreenCredentials: func() tea.Model {
 			return credentials.New(store)

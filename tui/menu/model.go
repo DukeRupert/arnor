@@ -17,6 +17,7 @@ type menuItem struct {
 var items = []menuItem{
 	{label: "Init", screen: tui.ScreenServerInit, heading: "Servers"},
 	{label: "Containers", screen: tui.ScreenDockerPS},
+	{label: "Deploy", screen: tui.ScreenServiceDeploy, heading: "Services"},
 	{label: "Create", screen: tui.ScreenProjectCreate, heading: "Projects"},
 	{label: "Deploy", screen: tui.ScreenDeploy},
 	{label: "Inspect", screen: tui.ScreenProjectInspect},

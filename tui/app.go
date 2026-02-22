@@ -16,6 +16,7 @@ const (
 	ScreenDeploy
 	ScreenProjectInspect
 	ScreenDockerPS
+	ScreenServiceDeploy
 	ScreenSetup
 	ScreenCredentials
 )
