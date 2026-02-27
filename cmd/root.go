@@ -34,6 +34,7 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.Version = Version
 	cobra.OnInitialize(initStore)
 }
 
