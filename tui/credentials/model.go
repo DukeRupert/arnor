@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dukerupert/arnor/internal/config"
 	"github.com/dukerupert/arnor/tui"
+	"github.com/dukerupert/annuminas/pkg/dockerhub"
 	fhetzner "github.com/dukerupert/fornost/pkg/hetzner"
 	"github.com/dukerupert/shadowfax/pkg/porkbun"
 )
@@ -58,7 +59,7 @@ var services = []serviceSpec{
 			{key: "username", label: "Username", placeholder: "username", masked: false},
 			{key: "password", label: "Password", placeholder: "password", masked: true},
 		},
-		canValidate: false,
+		canValidate: true,
 	},
 	{
 		name:        "Hetzner Cloud",
@@ -516,6 +517,11 @@ func (m Model) validate() tea.Cmd {
 			// Use account-scoped verify endpoint (account_id=values[0], api_token=values[1]).
 			if err := verifyCFToken(values[0], values[1]); err != nil {
 				return validateDoneMsg{err: fmt.Errorf("cloudflare validation failed: %w", err)}
+			}
+		case "dockerhub":
+			client := dockerhub.NewClient(values[0], values[1])
+			if err := client.Ping(); err != nil {
+				return validateDoneMsg{err: fmt.Errorf("dockerhub validation failed: %w", err)}
 			}
 		}
 		return validateDoneMsg{}
