@@ -23,8 +23,8 @@ github.com/clipperhouse/stringish v0.1.1/go.mod h1:v/WhFtE1q0ovMta2+m+UbpZ+2/HEX
 github.com/clipperhouse/uax29/v2 v2.5.0 h1:x7T0T4eTHDONxFJsL94uKNKPHrclyFI0lm7+w94cO8U=
 github.com/clipperhouse/uax29/v2 v2.5.0/go.mod h1:Wn1g7MK6OoeDT0vL+Q0SQLDz/KpfsVRgg6W7ihQeh4g=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
-github.com/dukerupert/annuminas v1.0.0 h1:olHiWLfz1/eKZGoSwY5IomJaQz4Y2cgGk//6TIMai9s=
-github.com/dukerupert/annuminas v1.0.0/go.mod h1:u+PcThWc9XILMaWt7i32D16B80t+o3DaOpH0cIYHfIk=
+github.com/dukerupert/annuminas v1.1.1 h1:VIqne25IAeXk86y9y0W2G9p3nCbpfZDWodNmgmNQmng=
+github.com/dukerupert/annuminas v1.1.1/go.mod h1:u+PcThWc9XILMaWt7i32D16B80t+o3DaOpH0cIYHfIk=
 github.com/dukerupert/fornost v0.0.0-20260219143818-5d4c05963f5c h1:cTjG99N18U+dQyweWHAS/iLqdOGS/BkDJI9lS32qgNE=
 github.com/dukerupert/fornost v0.0.0-20260219143818-5d4c05963f5c/go.mod h1:69NSiU/TpvFEsstm7pOQ1Keg8keUiOy+Bv8O0RLQ+VU=
 github.com/dukerupert/gwaihir v0.0.0-20260218141257-16ac396c6957 h1:mbDmJ3ehauFps4BaOVYl9RVjSXxp6yHCtnFYteP9rJc=
