@@ -127,7 +127,7 @@ func Deploy(params DeployParams) error {
 	if err := sshWriteFile(client, caddyPath, caddyConfig); err != nil {
 		return fmt.Errorf("writing caddy config: %w", err)
 	}
-	validateOut, err := sshOutput(client, "sudo caddy validate --config /etc/caddy/Caddyfile 2>&1")
+	validateOut, err := sshOutput(client, `sudo bash -c 'for e in $(systemctl show caddy -p Environment --value); do export "$e"; done; caddy validate --config /etc/caddy/Caddyfile' 2>&1`)
 	if err != nil {
 		return fmt.Errorf("caddy config validation failed: %s", strings.TrimSpace(validateOut))
 	}

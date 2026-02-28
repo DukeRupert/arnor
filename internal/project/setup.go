@@ -268,8 +268,10 @@ func writeCaddyConfig(serverIP, peonKeyPEM, domain, caddyConfig string) error {
 	}
 	session.Close()
 
-	// Validate config before reloading so we get a useful error message
-	validateOut, err := runSSHCommandOutput(client, "sudo caddy validate --config /etc/caddy/Caddyfile 2>&1")
+	// Validate config before reloading so we get a useful error message.
+	// Source the Caddy service environment (e.g. CF_API_TOKEN from systemd override)
+	// so the cloudflare DNS module can provision during validation.
+	validateOut, err := runSSHCommandOutput(client, `sudo bash -c 'for e in $(systemctl show caddy -p Environment --value); do export "$e"; done; caddy validate --config /etc/caddy/Caddyfile' 2>&1`)
 	if err != nil {
 		return fmt.Errorf("caddy config validation failed: %s", strings.TrimSpace(validateOut))
 	}

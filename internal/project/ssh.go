@@ -87,10 +87,7 @@ func runSSHCommandOutput(client *ssh.Client, command string) (string, error) {
 	}
 	defer session.Close()
 	out, err := session.Output(command)
-	if err != nil {
-		return "", err
-	}
-	return string(out), nil
+	return string(out), err
 }
 
 // DockerContainer holds parsed output from docker ps.
